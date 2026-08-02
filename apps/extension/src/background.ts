@@ -5,9 +5,19 @@ import {
   createErrorResponse,
   createSuccessResponse,
 } from '@conduit/protocol';
+import {
+  DEFAULT_DAEMON_PORT,
+  NATIVE_HOST_NAME,
+  NATIVE_PROTOCOL_VERSION,
+  NativeConnectionSettings,
+  parseNativeConnectionSettings,
+} from './connection-settings';
 
 let daemonSocket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let connectionAttemptInFlight = false;
+
+type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'setup-required';
 
 interface ExtensionDiagnostic {
   phase: string;
@@ -24,48 +34,86 @@ declare global {
 
 const browserEngine = new ExtensionBrowserEngine();
 
-function connectDaemon(): void {
-  if (daemonSocket) {
+async function connectDaemon(): Promise<void> {
+  if (daemonSocket || connectionAttemptInFlight) {
     return;
   }
 
-  chrome.storage.local.get(
-    ['daemonPort', 'daemonToken'],
-    (result: { daemonPort?: number; daemonToken?: string }) => {
-      const port = result.daemonPort ?? 9222;
-      const token = result.daemonToken;
+  connectionAttemptInFlight = true;
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  setConnectionState('connecting', 'Discovering the local Conduit daemon.');
 
-      if (!token) {
-        console.log('No daemon token available. Waiting for configuration.');
+  try {
+    const stored = await chrome.storage.local.get(['daemonPort', 'daemonToken']);
+    let port = typeof stored.daemonPort === 'number' ? stored.daemonPort : DEFAULT_DAEMON_PORT;
+    let token = typeof stored.daemonToken === 'string' ? stored.daemonToken : undefined;
+
+    if (!token) {
+      const settings = await requestNativeConnectionSettings();
+      if (!settings) {
+        setConnectionState('setup-required', 'Run conduit setup, then retry.');
+        setConnectionBadge(false);
+        scheduleReconnect();
         return;
       }
+      port = settings.daemonPort;
+      token = settings.daemonToken;
+      await chrome.storage.local.set({ daemonPort: port, daemonToken: token });
+    }
 
-      daemonSocket = new WebSocket(`ws://127.0.0.1:${port}`);
+    openDaemonSocket(port, token);
+  } finally {
+    connectionAttemptInFlight = false;
+  }
+}
 
-      daemonSocket.onopen = () => {
-        daemonSocket?.send(JSON.stringify({ type: 'auth', payload: { token } }));
-      };
+function openDaemonSocket(port: number, token: string): void {
+  daemonSocket = new WebSocket(`ws://127.0.0.1:${port}`);
 
-      daemonSocket.onmessage = (event) => {
-        setDiagnostic('message-received');
-        void handleDaemonMessage(event.data);
-      };
+  daemonSocket.onopen = () => {
+    daemonSocket?.send(JSON.stringify({ type: 'auth', payload: { token } }));
+  };
 
-      daemonSocket.onclose = () => {
-        daemonSocket = null;
-        setConnectionBadge(false);
+  daemonSocket.onmessage = (event) => {
+    setDiagnostic('message-received');
+    void handleDaemonMessage(event.data);
+  };
 
-        if (reconnectTimer) {
-          clearTimeout(reconnectTimer);
+  daemonSocket.onclose = () => {
+    daemonSocket = null;
+    setConnectionBadge(false);
+    setConnectionState('disconnected', 'Waiting for the local Conduit daemon.');
+    scheduleReconnect();
+  };
+
+  daemonSocket.onerror = (error) => {
+    console.error('Conduit daemon connection error', error);
+  };
+}
+
+function requestNativeConnectionSettings(): Promise<NativeConnectionSettings | null> {
+  return new Promise((resolve) => {
+    chrome.runtime.sendNativeMessage(
+      NATIVE_HOST_NAME,
+      { type: 'conduit.get-connection-settings', protocolVersion: NATIVE_PROTOCOL_VERSION },
+      (response: unknown) => {
+        if (chrome.runtime.lastError) {
+          console.info('Conduit native host is not available:', chrome.runtime.lastError.message);
+          resolve(null);
+          return;
         }
-        reconnectTimer = setTimeout(connectDaemon, 5_000);
-      };
+        resolve(parseNativeConnectionSettings(response));
+      },
+    );
+  });
+}
 
-      daemonSocket.onerror = (error) => {
-        console.error('Conduit daemon connection error', error);
-      };
-    },
-  );
+function scheduleReconnect(): void {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(() => void connectDaemon(), 5_000);
 }
 
 async function handleDaemonMessage(rawData: string): Promise<void> {
@@ -79,12 +127,14 @@ async function handleDaemonMessage(rawData: string): Promise<void> {
   if (isAuthSuccess(parsed.value)) {
     setDiagnostic('authenticated');
     setConnectionBadge(true);
+    setConnectionState('connected', 'Connected securely to the local Conduit daemon.');
     return;
   }
 
   if (isAuthFailure(parsed.value)) {
     setDiagnostic('authentication-failed');
     console.error('Authentication failed with Conduit daemon.');
+    void chrome.storage.local.remove('daemonToken');
     daemonSocket?.close();
     return;
   }
@@ -262,6 +312,14 @@ function setConnectionBadge(connected: boolean): void {
   chrome.action.setBadgeBackgroundColor({ color: connected ? '#107c41' : '#b42318' });
 }
 
+function setConnectionState(state: ConnectionState, message: string): void {
+  void chrome.storage.local.set({
+    connectionState: state,
+    connectionMessage: message,
+    connectionUpdatedAt: Date.now(),
+  });
+}
+
 function parseJson(value: string): { ok: true; value: unknown } | { ok: false } {
   try {
     return { ok: true, value: JSON.parse(value) };
@@ -292,7 +350,7 @@ function isAuthFailure(
   );
 }
 
-connectDaemon();
+void connectDaemon();
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || (!changes.daemonToken && !changes.daemonPort)) {
@@ -304,5 +362,23 @@ chrome.storage.onChanged.addListener((changes, area) => {
     return;
   }
 
-  connectDaemon();
+  void connectDaemon();
+});
+
+chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+  if (
+    typeof message !== 'object' ||
+    message === null ||
+    !('type' in message) ||
+    message.type !== 'conduit.retry-connection'
+  ) {
+    return false;
+  }
+
+  void chrome.storage.local.remove('daemonToken').then(() => {
+    if (daemonSocket) daemonSocket.close();
+    else void connectDaemon();
+    sendResponse({ ok: true });
+  });
+  return true;
 });

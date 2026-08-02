@@ -10,8 +10,8 @@ the main Conduit repository.
 ## Status
 
 Pre-1.0 migration repository. The extension builds and its browser engine and
-protocol tests run independently. Automatic local bootstrap and coordinated
-release compatibility are the next migration milestones.
+protocol tests run independently. It has a deterministic unpacked ID and discovers
+local connection settings through Chromium Native Messaging.
 
 ## Development
 
@@ -26,7 +26,8 @@ pnpm build
 ```
 
 Load `apps/extension/dist` from `chrome://extensions` or `edge://extensions` with
-Developer mode enabled.
+Developer mode enabled. Run `conduit setup` once to register the per-user native
+host. The extension then connects automatically without a pairing code.
 
 ## Security
 

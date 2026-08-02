@@ -1,53 +1,138 @@
 <!doctype html>
-<html>
+<html lang="en">
   <head>
-    <title>Conduit Extension</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Conduit</title>
     <style>
+      :root {
+        color-scheme: dark;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        background: #0b0d12;
+        color: #f5f7fb;
+      }
       body {
-        font-family: sans-serif;
-        width: 250px;
-        padding: 10px;
+        width: 310px;
+        margin: 0;
+        padding: 18px;
+        background:
+          radial-gradient(circle at top right, rgba(98, 92, 255, 0.2), transparent 42%), #0b0d12;
       }
-      .form-group {
-        margin-bottom: 10px;
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 18px;
       }
-      input {
-        width: 100%;
-        box-sizing: border-box;
-        padding: 5px;
+      h1 {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: -0.02em;
+      }
+      .eyebrow {
+        margin: 4px 0 0;
+        color: #959daf;
+        font-size: 11px;
+      }
+      .status {
+        border: 1px solid #252a36;
+        border-radius: 14px;
+        padding: 14px;
+        background: rgba(18, 21, 29, 0.88);
+      }
+      .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+      .label {
+        color: #959daf;
+        font-size: 12px;
+      }
+      #connection-state {
+        border-radius: 999px;
+        padding: 5px 9px;
+        background: #252a36;
+        color: #c9cfdb;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: capitalize;
+      }
+      #connection-state[data-state='connected'] {
+        background: rgba(52, 211, 153, 0.14);
+        color: #6ee7b7;
+      }
+      #connection-state[data-state='setup-required'] {
+        background: rgba(251, 191, 36, 0.14);
+        color: #fcd34d;
+      }
+      #connection-message {
+        min-height: 36px;
+        margin: 14px 0;
+        color: #c9cfdb;
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .meta {
+        display: flex;
+        justify-content: space-between;
+        padding-top: 12px;
+        border-top: 1px solid #252a36;
+        color: #959daf;
+        font-size: 11px;
       }
       button {
         width: 100%;
-        padding: 8px;
-        background: #0366d6;
-        color: white;
-        border: none;
+        margin-top: 12px;
+        border: 1px solid #383f50;
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: #f5f7fb;
+        color: #10131a;
         cursor: pointer;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 700;
       }
       button:hover {
-        background: #0056b3;
+        background: #dfe4ee;
+      }
+      button:disabled {
+        cursor: wait;
+        opacity: 0.6;
       }
     </style>
   </head>
   <body>
-    <h3>Conduit Settings</h3>
-    <div class="form-group">
-      <label>Daemon Port</label>
-      <input type="number" id="port" value="9222" />
-    </div>
-    <div class="form-group">
-      <label>Pairing Code</label>
-      <input
-        type="text"
-        id="code"
-        maxlength="12"
-        autocomplete="off"
-        placeholder="12-character code"
-      />
-    </div>
-    <button id="save">Pair & Connect</button>
-    <p id="status">Run <code>conduit extension pair</code> to create a one-use code.</p>
-
+    <header>
+      <div>
+        <h1>Conduit</h1>
+        <p class="eyebrow">Local browser bridge</p>
+      </div>
+      <span aria-hidden="true">◇</span>
+    </header>
+    <main>
+      <section class="status" aria-labelledby="connection-label">
+        <div class="status-row">
+          <span class="label" id="connection-label">Daemon</span>
+          <span id="connection-state" data-state="connecting">connecting</span>
+        </div>
+        <p id="connection-message">Discovering the local Conduit daemon.</p>
+        <div class="meta">
+          <span>Loopback only</span>
+          <span>Port <strong id="daemon-port">9222</strong></span>
+        </div>
+      </section>
+      <button type="button" id="retry">Retry connection</button>
+    </main>
     <script src="popup.js"></script>
   </body>
 </html>

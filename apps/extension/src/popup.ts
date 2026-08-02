@@ -1,62 +1,42 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const portInput = document.getElementById('port') as HTMLInputElement;
-  const codeInput = document.getElementById('code') as HTMLInputElement;
-  const saveBtn = document.getElementById('save') as HTMLButtonElement;
-  const status = document.getElementById('status') as HTMLParagraphElement;
+type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'setup-required';
 
-  chrome.storage.local.get(['daemonPort'], (result) => {
-    if (result.daemonPort) portInput.value = result.daemonPort;
+document.addEventListener('DOMContentLoaded', () => {
+  const stateElement = document.getElementById('connection-state') as HTMLSpanElement;
+  const messageElement = document.getElementById('connection-message') as HTMLParagraphElement;
+  const portElement = document.getElementById('daemon-port') as HTMLSpanElement;
+  const retryButton = document.getElementById('retry') as HTMLButtonElement;
+
+  const render = (values: {
+    connectionState?: ConnectionState;
+    connectionMessage?: string;
+    daemonPort?: number;
+  }) => {
+    const state = values.connectionState ?? 'connecting';
+    stateElement.textContent = state.replace('-', ' ');
+    stateElement.dataset.state = state;
+    messageElement.textContent =
+      values.connectionMessage ?? 'Discovering the local Conduit daemon.';
+    portElement.textContent = String(values.daemonPort ?? 9222);
+  };
+
+  chrome.storage.local.get(['connectionState', 'connectionMessage', 'daemonPort'], (values) =>
+    render(values),
+  );
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== 'local') return;
+    void chrome.storage.local
+      .get(['connectionState', 'connectionMessage', 'daemonPort'])
+      .then(render);
   });
 
-  saveBtn.addEventListener('click', async () => {
-    const port = parseInt(portInput.value, 10);
-    const code = codeInput.value.trim().toUpperCase();
-    saveBtn.disabled = true;
-    status.textContent = 'Pairing with the local daemon…';
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/api/extension/pair`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
-      });
-      const value: unknown = await response.json();
-      if (!response.ok || !hasToken(value)) {
-        throw new Error(readError(value));
-      }
-      await chrome.storage.local.set({ daemonPort: port, daemonToken: value.token });
-      codeInput.value = '';
-      status.textContent = 'Paired. Conduit is connecting securely.';
-      saveBtn.textContent = 'Paired';
-    } catch (error) {
-      status.textContent = error instanceof Error ? error.message : 'Pairing failed.';
-      saveBtn.textContent = 'Pair & Connect';
-    } finally {
-      saveBtn.disabled = false;
-    }
+  retryButton.addEventListener('click', () => {
+    retryButton.disabled = true;
+    messageElement.textContent = 'Retrying native host discovery…';
+    chrome.runtime.sendMessage({ type: 'conduit.retry-connection' }, () => {
+      window.setTimeout(() => {
+        retryButton.disabled = false;
+      }, 1_000);
+    });
   });
 });
-
-function hasToken(value: unknown): value is { token: string } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'token' in value &&
-    typeof value.token === 'string' &&
-    /^[a-f0-9]{64}$/u.test(value.token)
-  );
-}
-
-function readError(value: unknown): string {
-  if (
-    typeof value === 'object' &&
-    value !== null &&
-    'error' in value &&
-    typeof value.error === 'object' &&
-    value.error !== null &&
-    'message' in value.error &&
-    typeof value.error.message === 'string'
-  ) {
-    return value.error.message;
-  }
-  return 'Pairing failed. Check the code and daemon port.';
-}
