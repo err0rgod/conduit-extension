@@ -82,7 +82,17 @@ function openDaemonSocket(port: number, token: string): void {
     void handleDaemonMessage(event.data);
   };
 
+  let pingInterval: ReturnType<typeof setInterval> | null = null;
+  daemonSocket.addEventListener('open', () => {
+    pingInterval = setInterval(() => {
+      if (daemonSocket?.readyState === WebSocket.OPEN) {
+        daemonSocket.send(JSON.stringify(createSuccessResponse({ ping: true }, 'keepalive')));
+      }
+    }, 20_000);
+  });
+
   daemonSocket.onclose = () => {
+    if (pingInterval) clearInterval(pingInterval);
     daemonSocket = null;
     setConnectionBadge(false);
     setConnectionState('disconnected', 'Waiting for the local Conduit daemon.');
