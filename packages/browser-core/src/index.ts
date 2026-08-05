@@ -91,6 +91,21 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
 
   public async openTab(url?: string): Promise<BrowserTab> {
     const tab = await chrome.tabs.create({ ...(url ? { url } : {}) });
+    if (tab.id) {
+      try {
+        const groups = await chrome.tabGroups.query({ title: 'Conduit' });
+        let groupId: number;
+        if (groups.length > 0) {
+          groupId = groups[0].id;
+          await chrome.tabs.group({ tabIds: tab.id, groupId });
+        } else {
+          groupId = await chrome.tabs.group({ tabIds: tab.id });
+          await chrome.tabGroups.update(groupId, { title: 'Conduit', color: 'blue' });
+        }
+      } catch (err) {
+        console.warn('Failed to group tab:', err);
+      }
+    }
     return toBrowserTab(tab);
   }
 
