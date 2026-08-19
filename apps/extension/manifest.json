@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Conduit Extension",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Secure local-first browser control for AI agents.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoXC2L+2qtU4XGF09xOF7b9lRUoeJT475RPwzNT24QFfTGlVN6MeNFKBGuOHwQuB8MYpTzdnwYrL1/SXSNDmp0Obds3NEooa/RyNDDXY7vgSg9ymd392alocd8aoctMND1xILAP4jbnohDINi/V6liYTUbfwnXgw2gZ701545DrpE7y/6DucmJY0CwQpBpUEjD2JC4hk8NzaVNRr0X3tnLh9cRz1qoOzv7FksG55L/9nm99UUSr7PALkhBN0sV7XDX8rcOMFyV65wB8ue1HuvV4QITe2Yl2b0HPK5izuYDfZwSUO3Www7Q7HqTLbXyMKePHTMpFVj9IdS8vUpFsdjAQIDAQAB",
   "permissions": ["activeTab", "tabs", "tabGroups", "scripting", "storage", "nativeMessaging"],
