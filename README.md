@@ -43,6 +43,10 @@ Pending one-time confirmations are reviewed in the popup over the authenticated
 daemon socket. Summaries, risk, domain, operation, and expiry are shown as
 untrusted text; only the popup can send an approve-once or deny decision.
 
+The popup also requests at most 20 recent structured audit events. It shows only
+event type, outcome, operation/domain scope, and time; sensitive values are
+redacted by the daemon and arbitrary event details remain hidden from this view.
+
 ## Security
 
 The extension connects only to the local Conduit daemon by default. Host access is

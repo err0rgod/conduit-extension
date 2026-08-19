@@ -20,8 +20,10 @@
       }
       body {
         width: 310px;
+        max-height: 560px;
         margin: 0;
         padding: 18px;
+        overflow-y: auto;
         background:
           radial-gradient(circle at top right, rgba(98, 92, 255, 0.2), transparent 42%), #0b0d12;
       }
@@ -176,6 +178,30 @@
         margin-top: 10px;
         padding: 8px;
       }
+      .audit-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .audit-event {
+        border-left: 2px solid #596174;
+        padding-left: 9px;
+      }
+      .audit-event[data-outcome='denied'],
+      .audit-event[data-outcome='failure'] {
+        border-left-color: #f87171;
+      }
+      .audit-type {
+        margin: 0;
+        color: #f5f7fb;
+        font-size: 11px;
+      }
+      .audit-meta {
+        margin: 4px 0 0;
+        color: #959daf;
+        font-size: 10px;
+        line-height: 1.35;
+      }
       button {
         width: 100%;
         margin-top: 12px;
@@ -278,6 +304,17 @@
         </p>
         <div class="confirmation-list" id="confirmation-list"></div>
         <button type="button" class="secondary" id="refresh-confirmations">Refresh</button>
+      </section>
+      <section class="status site" aria-labelledby="audit-label">
+        <div class="status-row">
+          <span class="label" id="audit-label">Recent audit events</span>
+          <span id="audit-count">checking</span>
+        </div>
+        <p class="permission-note" id="audit-message">
+          Bounded redacted security and browser activity from this daemon session.
+        </p>
+        <div class="audit-list" id="audit-list"></div>
+        <button type="button" class="secondary" id="refresh-audit">Refresh</button>
       </section>
       <button type="button" id="retry">Retry connection</button>
     </main>
