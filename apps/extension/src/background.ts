@@ -12,10 +12,13 @@ import {
   NativeConnectionSettings,
   parseNativeConnectionSettings,
 } from './connection-settings';
+import { parseControlCommand, summarizeControlActivity } from './control-state';
+import type { ControlCommand } from './control-state';
 
 let daemonSocket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let connectionAttemptInFlight = false;
+let controlPaused = false;
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'setup-required';
 
@@ -35,7 +38,7 @@ declare global {
 const browserEngine = new ExtensionBrowserEngine();
 
 async function connectDaemon(): Promise<void> {
-  if (daemonSocket || connectionAttemptInFlight) {
+  if (controlPaused || daemonSocket || connectionAttemptInFlight) {
     return;
   }
 
@@ -95,8 +98,13 @@ function openDaemonSocket(port: number, token: string): void {
     if (pingInterval) clearInterval(pingInterval);
     daemonSocket = null;
     setConnectionBadge(false);
-    setConnectionState('disconnected', 'Waiting for the local Conduit daemon.');
-    scheduleReconnect();
+    if (controlPaused) {
+      setConnectionState('disconnected', 'Emergency disconnect is active.');
+      setPausedBadge();
+    } else {
+      setConnectionState('disconnected', 'Waiting for the local Conduit daemon.');
+      scheduleReconnect();
+    }
   };
 
   daemonSocket.onerror = (error) => {
@@ -122,6 +130,7 @@ function requestNativeConnectionSettings(): Promise<NativeConnectionSettings | n
 }
 
 function scheduleReconnect(): void {
+  if (controlPaused) return;
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = setTimeout(() => void connectDaemon(), 5_000);
 }
@@ -162,6 +171,13 @@ async function handleDaemonMessage(rawData: string): Promise<void> {
 }
 
 async function executeBrowserRequest(request: BrowserRequestEnvelope): Promise<void> {
+  if (controlPaused) {
+    sendToDaemon(
+      createErrorResponse('PERMISSION_DENIED', 'Browser control is paused.', request.id),
+    );
+    return;
+  }
+  void chrome.storage.local.set({ lastControlActivity: summarizeControlActivity(request) });
   setDiagnostic('executing', request.type, request.id);
   try {
     switch (request.type) {
@@ -322,6 +338,11 @@ function setConnectionBadge(connected: boolean): void {
   chrome.action.setBadgeBackgroundColor({ color: connected ? '#107c41' : '#b42318' });
 }
 
+function setPausedBadge(): void {
+  chrome.action.setBadgeText({ text: 'STOP' });
+  chrome.action.setBadgeBackgroundColor({ color: '#b42318' });
+}
+
 function setConnectionState(state: ConnectionState, message: string): void {
   void chrome.storage.local.set({
     connectionState: state,
@@ -360,7 +381,18 @@ function isAuthFailure(
   );
 }
 
-void connectDaemon();
+void initializeControl();
+
+async function initializeControl(): Promise<void> {
+  const stored = await chrome.storage.local.get('controlPaused');
+  controlPaused = stored.controlPaused === true;
+  if (controlPaused) {
+    setPausedBadge();
+    setConnectionState('disconnected', 'Emergency disconnect is active.');
+    return;
+  }
+  await connectDaemon();
+}
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local' || (!changes.daemonToken && !changes.daemonPort)) {
@@ -376,19 +408,30 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-  if (
-    typeof message !== 'object' ||
-    message === null ||
-    !('type' in message) ||
-    message.type !== 'conduit.retry-connection'
-  ) {
-    return false;
-  }
+  const command = parseControlCommand(message);
+  if (!command) return false;
 
-  void chrome.storage.local.remove('daemonToken').then(() => {
-    if (daemonSocket) daemonSocket.close();
-    else void connectDaemon();
-    sendResponse({ ok: true });
-  });
+  void handleControlCommand(command).then(() => sendResponse({ ok: true }));
   return true;
 });
+
+async function handleControlCommand(command: ControlCommand): Promise<void> {
+  if (command === 'disconnect') {
+    controlPaused = true;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    await chrome.storage.local.set({ controlPaused: true });
+    setConnectionState('disconnected', 'Emergency disconnect is active.');
+    setPausedBadge();
+    daemonSocket?.close();
+    return;
+  }
+
+  controlPaused = false;
+  await chrome.storage.local.set({ controlPaused: false });
+  if (command === 'retry-connection') await chrome.storage.local.remove('daemonToken');
+  if (daemonSocket) daemonSocket.close();
+  else await connectDaemon();
+}

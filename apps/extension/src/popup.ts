@@ -11,6 +11,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const siteAccess = document.getElementById('site-access') as HTMLSpanElement;
   const allowSiteButton = document.getElementById('allow-site') as HTMLButtonElement;
   const revokeSiteButton = document.getElementById('revoke-site') as HTMLButtonElement;
+  const controlState = document.getElementById('control-state') as HTMLSpanElement;
+  const controlTarget = document.getElementById('control-target') as HTMLSpanElement;
+  const lastAction = document.getElementById('last-action') as HTMLSpanElement;
+  const disconnectButton = document.getElementById('disconnect') as HTMLButtonElement;
+  const resumeButton = document.getElementById('resume') as HTMLButtonElement;
   let activePattern: string | undefined;
 
   const render = (values: {
@@ -35,7 +40,29 @@ document.addEventListener('DOMContentLoaded', () => {
     void chrome.storage.local
       .get(['connectionState', 'connectionMessage', 'daemonPort'])
       .then(render);
+    void renderControlState();
   });
+
+  const renderControlState = async () => {
+    const values = await chrome.storage.local.get(['controlPaused', 'lastControlActivity']);
+    const paused = values.controlPaused === true;
+    controlState.textContent = paused ? 'paused' : 'ready';
+    controlState.dataset.paused = String(paused);
+    disconnectButton.hidden = paused;
+    resumeButton.hidden = !paused;
+
+    const activity = values.lastControlActivity;
+    if (!isControlActivity(activity)) {
+      controlTarget.textContent = 'No browser action yet';
+      lastAction.textContent = 'None';
+      return;
+    }
+    controlTarget.textContent = activity.target;
+    const operation = activity.operation.replace(/^browser\./u, '').replaceAll('_', ' ');
+    lastAction.textContent = `${operation} · ${new Date(activity.timestamp).toLocaleTimeString()}`;
+  };
+
+  void renderControlState();
 
   const renderSiteAccess = async () => {
     const tabs = await chrome.tabs.query({ currentWindow: true });
@@ -79,6 +106,22 @@ document.addEventListener('DOMContentLoaded', () => {
     await renderSiteAccess();
   });
 
+  disconnectButton.addEventListener('click', () => {
+    disconnectButton.disabled = true;
+    chrome.runtime.sendMessage({ type: 'conduit.disconnect' }, () => {
+      disconnectButton.disabled = false;
+      void renderControlState();
+    });
+  });
+
+  resumeButton.addEventListener('click', () => {
+    resumeButton.disabled = true;
+    chrome.runtime.sendMessage({ type: 'conduit.resume' }, () => {
+      resumeButton.disabled = false;
+      void renderControlState();
+    });
+  });
+
   retryButton.addEventListener('click', () => {
     retryButton.disabled = true;
     messageElement.textContent = 'Retrying native host discovery…';
@@ -89,3 +132,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
+function isControlActivity(
+  value: unknown,
+): value is { operation: string; target: string; timestamp: number } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'operation' in value &&
+    typeof value.operation === 'string' &&
+    'target' in value &&
+    typeof value.target === 'string' &&
+    'timestamp' in value &&
+    typeof value.timestamp === 'number'
+  );
+}
