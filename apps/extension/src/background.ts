@@ -2,6 +2,10 @@ import { BrowserActionError, ExtensionBrowserEngine } from '@conduit/browser-cor
 import {
   BrowserRequestEnvelope,
   BrowserRequestEnvelopeSchema,
+  ExtensionManagementRequestSchema,
+  ResponseEnvelope,
+  ResponseEnvelopeSchema,
+  createEnvelopeBase,
   createErrorResponse,
   createSuccessResponse,
 } from '@conduit/protocol';
@@ -14,11 +18,26 @@ import {
 } from './connection-settings';
 import { parseControlCommand, summarizeControlActivity } from './control-state';
 import type { ControlCommand } from './control-state';
+import {
+  parseConfirmationAccepted,
+  parseConfirmationCommand,
+  parseConfirmationList,
+} from './confirmation-state';
+import type { ConfirmationCommand } from './confirmation-state';
 
 let daemonSocket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let connectionAttemptInFlight = false;
 let controlPaused = false;
+let daemonAuthenticated = false;
+
+interface PendingManagementRequest {
+  resolve: (response: ResponseEnvelope) => void;
+  reject: (error: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+const pendingManagementRequests = new Map<string, PendingManagementRequest>();
 
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'setup-required';
 
@@ -74,6 +93,7 @@ async function connectDaemon(): Promise<void> {
 }
 
 function openDaemonSocket(port: number, token: string): void {
+  daemonAuthenticated = false;
   daemonSocket = new WebSocket(`ws://127.0.0.1:${port}`);
 
   daemonSocket.onopen = () => {
@@ -96,6 +116,8 @@ function openDaemonSocket(port: number, token: string): void {
 
   daemonSocket.onclose = () => {
     if (pingInterval) clearInterval(pingInterval);
+    daemonAuthenticated = false;
+    rejectPendingManagementRequests('The Conduit daemon connection closed.');
     daemonSocket = null;
     setConnectionBadge(false);
     if (controlPaused) {
@@ -144,6 +166,7 @@ async function handleDaemonMessage(rawData: string): Promise<void> {
   }
 
   if (isAuthSuccess(parsed.value)) {
+    daemonAuthenticated = true;
     setDiagnostic('authenticated');
     setConnectionBadge(true);
     setConnectionState('connected', 'Connected securely to the local Conduit daemon.');
@@ -151,12 +174,16 @@ async function handleDaemonMessage(rawData: string): Promise<void> {
   }
 
   if (isAuthFailure(parsed.value)) {
+    daemonAuthenticated = false;
     setDiagnostic('authentication-failed');
     console.error('Authentication failed with Conduit daemon.');
     void chrome.storage.local.remove('daemonToken');
     daemonSocket?.close();
     return;
   }
+
+  const managementResponse = ResponseEnvelopeSchema.safeParse(parsed.value);
+  if (managementResponse.success && resolveManagementResponse(managementResponse.data)) return;
 
   const request = BrowserRequestEnvelopeSchema.safeParse(parsed.value);
   if (!request.success) {
@@ -407,17 +434,100 @@ chrome.storage.onChanged.addListener((changes, area) => {
   void connectDaemon();
 });
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const command = parseControlCommand(message);
-  if (!command) return false;
+  const confirmationCommand = parseConfirmationCommand(message);
+  if (!command && !confirmationCommand) return false;
 
-  void handleControlCommand(command).then(() => sendResponse({ ok: true }));
+  if (!isTrustedPopupSender(sender)) {
+    sendResponse({ ok: false, error: 'This command is available only from the Conduit popup.' });
+    return false;
+  }
+
+  let task: Promise<unknown>;
+  if (command) task = handleControlCommand(command).then(() => ({ ok: true }));
+  else {
+    if (!confirmationCommand) return false;
+    task = handleConfirmationCommand(confirmationCommand);
+  }
+  void task.then(sendResponse).catch((error: unknown) =>
+    sendResponse({
+      ok: false,
+      error: error instanceof Error ? error.message : 'Confirmation request failed.',
+    }),
+  );
   return true;
 });
+
+function isTrustedPopupSender(sender: chrome.runtime.MessageSender): boolean {
+  return sender.id === chrome.runtime.id && sender.url === chrome.runtime.getURL('popup.html');
+}
+
+async function handleConfirmationCommand(command: ConfirmationCommand): Promise<unknown> {
+  if (command.type === 'list') {
+    const response = await sendManagementRequest('extension.confirmations.list', {});
+    if (!response.success) throw new Error(response.error.message);
+    const confirmations = parseConfirmationList(response.payload);
+    if (!confirmations) throw new Error('The daemon returned an invalid confirmation list.');
+    return { ok: true, confirmations };
+  }
+
+  const response = await sendManagementRequest('extension.confirmations.respond', {
+    confirmationId: command.confirmationId,
+    approved: command.approved,
+  });
+  if (!response.success) throw new Error(response.error.message);
+  const accepted = parseConfirmationAccepted(response.payload);
+  if (accepted === undefined)
+    throw new Error('The daemon returned an invalid confirmation result.');
+  return { ok: true, accepted };
+}
+
+function sendManagementRequest(
+  type: 'extension.confirmations.list' | 'extension.confirmations.respond',
+  payload: unknown,
+): Promise<ResponseEnvelope> {
+  if (!daemonAuthenticated || daemonSocket?.readyState !== WebSocket.OPEN) {
+    return Promise.reject(new Error('The Conduit daemon is not connected.'));
+  }
+  const request = ExtensionManagementRequestSchema.parse({
+    ...createEnvelopeBase(),
+    type,
+    payload,
+  });
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingManagementRequests.delete(request.id);
+      reject(new Error('The daemon did not answer the confirmation request in time.'));
+    }, 5_000);
+    pendingManagementRequests.set(request.id, { resolve, reject, timer });
+    daemonSocket?.send(JSON.stringify(request));
+  });
+}
+
+function resolveManagementResponse(response: ResponseEnvelope): boolean {
+  if (!response.correlationId) return false;
+  const pending = pendingManagementRequests.get(response.correlationId);
+  if (!pending) return false;
+  clearTimeout(pending.timer);
+  pendingManagementRequests.delete(response.correlationId);
+  pending.resolve(response);
+  return true;
+}
+
+function rejectPendingManagementRequests(message: string): void {
+  for (const pending of pendingManagementRequests.values()) {
+    clearTimeout(pending.timer);
+    pending.reject(new Error(message));
+  }
+  pendingManagementRequests.clear();
+}
 
 async function handleControlCommand(command: ControlCommand): Promise<void> {
   if (command === 'disconnect') {
     controlPaused = true;
+    daemonAuthenticated = false;
+    rejectPendingManagementRequests('Emergency disconnect stopped the daemon connection.');
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;

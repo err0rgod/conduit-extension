@@ -39,6 +39,10 @@ persisting page or form content. **Emergency disconnect** closes the daemon sock
 stops automatic reconnection, and displays a red `STOP` badge until the user
 explicitly resumes agent control.
 
+Pending one-time confirmations are reviewed in the popup over the authenticated
+daemon socket. Summaries, risk, domain, operation, and expiry are shown as
+untrusted text; only the popup can send an approve-once or deny decision.
+
 ## Security
 
 The extension connects only to the local Conduit daemon by default. Host access is

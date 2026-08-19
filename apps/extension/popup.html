@@ -142,6 +142,40 @@
         font-size: 11px;
         line-height: 1.45;
       }
+      .confirmation-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .confirmation-card {
+        border: 1px solid #383f50;
+        border-radius: 10px;
+        padding: 10px;
+        background: #10131a;
+      }
+      .confirmation-card[data-risk='high'] {
+        border-color: rgba(248, 113, 113, 0.55);
+      }
+      .confirmation-summary {
+        margin: 0;
+        color: #f5f7fb;
+        font-size: 12px;
+        line-height: 1.45;
+      }
+      .confirmation-meta {
+        margin: 7px 0 0;
+        color: #959daf;
+        font-size: 10px;
+      }
+      .confirmation-decisions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .confirmation-decisions button {
+        margin-top: 10px;
+        padding: 8px;
+      }
       button {
         width: 100%;
         margin-top: 12px;
@@ -233,6 +267,17 @@
         </p>
         <button type="button" id="allow-site">Allow this site</button>
         <button type="button" class="secondary" id="revoke-site" hidden>Revoke site access</button>
+      </section>
+      <section class="status site" aria-labelledby="confirmations-label">
+        <div class="status-row">
+          <span class="label" id="confirmations-label">Pending confirmations</span>
+          <span id="confirmation-count">checking</span>
+        </div>
+        <p class="permission-note" id="confirmation-message">
+          Review consequential actions before the agent retries them.
+        </p>
+        <div class="confirmation-list" id="confirmation-list"></div>
+        <button type="button" class="secondary" id="refresh-confirmations">Refresh</button>
       </section>
       <button type="button" id="retry">Retry connection</button>
     </main>
