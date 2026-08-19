@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { BrowserActionError, hostPermissionPattern, normalizeDataUrl } from '../src/index';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  BrowserActionError,
+  ExtensionBrowserEngine,
+  hostPermissionPattern,
+  normalizeDataUrl,
+} from '../src/index';
 
 describe('browser-core screenshot helpers', () => {
   it('normalizes PNG data URLs into protocol screenshot results', () => {
@@ -28,5 +33,39 @@ describe('host permission patterns', () => {
     expect(hostPermissionPattern('chrome://settings')).toBeUndefined();
     expect(hostPermissionPattern('file:///tmp/private.txt')).toBeUndefined();
     expect(hostPermissionPattern('not a URL')).toBeUndefined();
+  });
+});
+
+describe('browser host permission enforcement', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('blocks page script execution before Chromium grants the origin', async () => {
+    const executeScript = vi.fn();
+    vi.stubGlobal('chrome', {
+      tabs: { get: vi.fn().mockResolvedValue({ id: 7, url: 'https://example.com/private' }) },
+      permissions: { contains: vi.fn().mockResolvedValue(false) },
+      scripting: { executeScript },
+    });
+
+    await expect(new ExtensionBrowserEngine().getVisibleText({ tabId: 7 })).rejects.toMatchObject({
+      code: 'PERMISSION_DENIED',
+    });
+    expect(executeScript).not.toHaveBeenCalled();
+  });
+
+  it('executes only after Chromium confirms the exact origin grant', async () => {
+    const executeScript = vi.fn().mockResolvedValue([{ result: 'visible page text' }]);
+    const contains = vi.fn().mockResolvedValue(true);
+    vi.stubGlobal('chrome', {
+      tabs: { get: vi.fn().mockResolvedValue({ id: 7, url: 'https://example.com/private' }) },
+      permissions: { contains },
+      scripting: { executeScript },
+    });
+
+    await expect(new ExtensionBrowserEngine().getVisibleText({ tabId: 7 })).resolves.toBe(
+      'visible page text',
+    );
+    expect(contains).toHaveBeenCalledWith({ origins: ['https://example.com/*'] });
+    expect(executeScript).toHaveBeenCalledOnce();
   });
 });
