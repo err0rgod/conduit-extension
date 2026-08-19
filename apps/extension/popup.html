@@ -89,6 +89,26 @@
         color: #959daf;
         font-size: 11px;
       }
+      .site {
+        margin-top: 12px;
+      }
+      #site-name {
+        max-width: 180px;
+        overflow: hidden;
+        color: #f5f7fb;
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #site-access[data-granted='true'] {
+        color: #6ee7b7;
+      }
+      .permission-note {
+        margin: 10px 0 0;
+        color: #959daf;
+        font-size: 11px;
+        line-height: 1.45;
+      }
       button {
         width: 100%;
         margin-top: 12px;
@@ -108,6 +128,13 @@
       button:disabled {
         cursor: wait;
         opacity: 0.6;
+      }
+      button.secondary {
+        background: transparent;
+        color: #c9cfdb;
+      }
+      [hidden] {
+        display: none !important;
       }
     </style>
   </head>
@@ -130,6 +157,20 @@
           <span>Loopback only</span>
           <span>Port <strong id="daemon-port">9222</strong></span>
         </div>
+      </section>
+      <section class="status site" aria-labelledby="site-label">
+        <div class="status-row">
+          <span class="label" id="site-label">Current site</span>
+          <span id="site-access" data-granted="false">checking</span>
+        </div>
+        <div class="status-row" style="margin-top: 10px">
+          <span id="site-name">Checking active tab…</span>
+        </div>
+        <p class="permission-note">
+          Site access is granted by Chromium and remains separate from Conduit daemon policy.
+        </p>
+        <button type="button" id="allow-site">Allow this site</button>
+        <button type="button" class="secondary" id="revoke-site" hidden>Revoke site access</button>
       </section>
       <button type="button" id="retry">Retry connection</button>
     </main>
