@@ -1,6 +1,7 @@
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'setup-required';
 
 import { hostPermissionPattern } from '@conduit/browser-core';
+import type { ConfirmationRequest } from '@conduit/protocol';
 
 document.addEventListener('DOMContentLoaded', () => {
   const stateElement = document.getElementById('connection-state') as HTMLSpanElement;
@@ -16,6 +17,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const lastAction = document.getElementById('last-action') as HTMLSpanElement;
   const disconnectButton = document.getElementById('disconnect') as HTMLButtonElement;
   const resumeButton = document.getElementById('resume') as HTMLButtonElement;
+  const confirmationCount = document.getElementById('confirmation-count') as HTMLSpanElement;
+  const confirmationMessage = document.getElementById(
+    'confirmation-message',
+  ) as HTMLParagraphElement;
+  const confirmationList = document.getElementById('confirmation-list') as HTMLDivElement;
+  const refreshConfirmations = document.getElementById(
+    'refresh-confirmations',
+  ) as HTMLButtonElement;
   let activePattern: string | undefined;
 
   const render = (values: {
@@ -41,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .get(['connectionState', 'connectionMessage', 'daemonPort'])
       .then(render);
     void renderControlState();
+    if (changes.connectionState) void renderConfirmations();
   });
 
   const renderControlState = async () => {
@@ -91,6 +101,92 @@ document.addEventListener('DOMContentLoaded', () => {
 
   void renderSiteAccess();
 
+  const renderConfirmations = async () => {
+    confirmationCount.textContent = 'checking';
+    refreshConfirmations.disabled = true;
+    try {
+      const response = await sendPopupMessage<ConfirmationListResult>({
+        type: 'conduit.confirmations.list',
+      });
+      if (!response.ok) throw new Error(response.error);
+      confirmationList.replaceChildren(
+        ...response.confirmations.map((confirmation) => confirmationCard(confirmation)),
+      );
+      confirmationCount.textContent = String(response.confirmations.length);
+      confirmationMessage.textContent = response.confirmations.length
+        ? 'Page content is untrusted. Approve only the action summarized here.'
+        : 'No agent action is waiting for your review.';
+    } catch (error) {
+      confirmationList.replaceChildren();
+      confirmationCount.textContent = 'unavailable';
+      confirmationMessage.textContent =
+        error instanceof Error ? error.message : 'Could not load pending confirmations.';
+    } finally {
+      refreshConfirmations.disabled = false;
+    }
+  };
+
+  const confirmationCard = (confirmation: ConfirmationRequest): HTMLElement => {
+    const card = document.createElement('article');
+    card.className = 'confirmation-card';
+    card.dataset.risk = confirmation.risk;
+
+    const summary = document.createElement('p');
+    summary.className = 'confirmation-summary';
+    summary.textContent = confirmation.summary;
+
+    const meta = document.createElement('p');
+    meta.className = 'confirmation-meta';
+    const target = confirmation.domain ? ` on ${confirmation.domain}` : '';
+    const expiry = new Date(confirmation.expiresAt).toLocaleTimeString();
+    meta.textContent = `${confirmation.risk} risk · ${confirmation.operation}${target} · expires ${expiry}`;
+
+    const decisions = document.createElement('div');
+    decisions.className = 'confirmation-decisions';
+    const deny = document.createElement('button');
+    deny.type = 'button';
+    deny.className = 'secondary';
+    deny.textContent = 'Deny';
+    const approve = document.createElement('button');
+    approve.type = 'button';
+    approve.textContent = 'Approve once';
+    if (confirmation.risk === 'high') approve.className = 'danger';
+
+    const respond = async (approved: boolean) => {
+      deny.disabled = true;
+      approve.disabled = true;
+      try {
+        const response = await sendPopupMessage<ConfirmationDecisionResult>({
+          type: 'conduit.confirmations.respond',
+          confirmationId: confirmation.id,
+          approved,
+        });
+        if (!response.ok || !response.accepted) {
+          confirmationMessage.textContent = response.ok
+            ? 'This confirmation expired or was already answered.'
+            : response.error;
+          deny.disabled = false;
+          approve.disabled = false;
+          return;
+        }
+        await renderConfirmations();
+      } catch (error) {
+        confirmationMessage.textContent =
+          error instanceof Error ? error.message : 'Could not answer the confirmation.';
+        deny.disabled = false;
+        approve.disabled = false;
+      }
+    };
+    deny.addEventListener('click', () => void respond(false));
+    approve.addEventListener('click', () => void respond(true));
+    decisions.append(deny, approve);
+    card.append(summary, meta, decisions);
+    return card;
+  };
+
+  refreshConfirmations.addEventListener('click', () => void renderConfirmations());
+  void renderConfirmations();
+
   allowSiteButton.addEventListener('click', async () => {
     if (!activePattern) return;
     allowSiteButton.disabled = true;
@@ -132,6 +228,23 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
+type ConfirmationListResult =
+  { ok: true; confirmations: ConfirmationRequest[] } | { ok: false; error: string };
+
+type ConfirmationDecisionResult = { ok: true; accepted: boolean } | { ok: false; error: string };
+
+function sendPopupMessage<T>(message: unknown): Promise<T> {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(message, (response: T) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      resolve(response);
+    });
+  });
+}
 
 function isControlActivity(
   value: unknown,
