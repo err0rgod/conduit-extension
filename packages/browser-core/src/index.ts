@@ -256,11 +256,19 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     format: 'png' | 'jpeg' = 'png',
   ): Promise<ScreenshotResult> {
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     const tab = await chrome.tabs.update(tabId, { active: true });
     const windowId = tab.windowId;
 
-    const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format });
-    return normalizeDataUrl(dataUrl);
+    try {
+      const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format });
+      return normalizeDataUrl(dataUrl);
+    } catch {
+      throw new BrowserActionError(
+        'PERMISSION_DENIED',
+        'Chromium requires an active-tab grant for screenshots. Open Conduit on the target tab and retry.',
+      );
+    }
   }
 
   public async uploadFile(target: BrowserTarget, action: UploadFileAction): Promise<void> {
@@ -326,6 +334,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     func: (...args: Args) => Result,
     args: Args,
   ): Promise<Result> {
+    await requireHostAccess(tabId);
     const results = await chrome.scripting.executeScript({
       target: { tabId },
       func,
@@ -339,6 +348,33 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
       );
     }
     return first.result as Result;
+  }
+}
+
+export function hostPermissionPattern(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if (!['http:', 'https:'].includes(url.protocol)) return undefined;
+    return `${url.protocol}//${url.hostname}/*`;
+  } catch {
+    return undefined;
+  }
+}
+
+async function requireHostAccess(tabId: number): Promise<void> {
+  const tab = await chrome.tabs.get(tabId);
+  const pattern = tab.url ? hostPermissionPattern(tab.url) : undefined;
+  if (!pattern) {
+    throw new BrowserActionError(
+      'PERMISSION_DENIED',
+      'Conduit cannot inspect restricted or non-HTTP browser pages.',
+    );
+  }
+  if (!(await chrome.permissions.contains({ origins: [pattern] }))) {
+    throw new BrowserActionError(
+      'PERMISSION_DENIED',
+      `Open the Conduit extension on ${new URL(tab.url as string).hostname} and allow site access.`,
+    );
   }
 }
 
