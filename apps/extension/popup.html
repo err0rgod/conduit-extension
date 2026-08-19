@@ -103,6 +103,39 @@
       #site-access[data-granted='true'] {
         color: #6ee7b7;
       }
+      #control-state {
+        border-radius: 999px;
+        padding: 4px 8px;
+        background: rgba(52, 211, 153, 0.14);
+        color: #6ee7b7;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      #control-state[data-paused='true'] {
+        background: rgba(248, 113, 113, 0.14);
+        color: #fca5a5;
+      }
+      .activity {
+        display: grid;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid #252a36;
+        color: #c9cfdb;
+        font-size: 11px;
+      }
+      .activity-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .activity-row span:last-child {
+        max-width: 175px;
+        overflow: hidden;
+        text-align: right;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       .permission-note {
         margin: 10px 0 0;
         color: #959daf;
@@ -133,6 +166,14 @@
         background: transparent;
         color: #c9cfdb;
       }
+      button.danger {
+        border-color: rgba(248, 113, 113, 0.45);
+        background: rgba(127, 29, 29, 0.35);
+        color: #fecaca;
+      }
+      button.danger:hover {
+        background: rgba(153, 27, 27, 0.55);
+      }
       [hidden] {
         display: none !important;
       }
@@ -157,6 +198,27 @@
           <span>Loopback only</span>
           <span>Port <strong id="daemon-port">9222</strong></span>
         </div>
+      </section>
+      <section class="status site" aria-labelledby="control-label">
+        <div class="status-row">
+          <span class="label" id="control-label">Agent control</span>
+          <span id="control-state" data-paused="false">ready</span>
+        </div>
+        <div class="activity">
+          <div class="activity-row">
+            <span class="label">Target</span>
+            <span id="control-target">No browser action yet</span>
+          </div>
+          <div class="activity-row">
+            <span class="label">Last action</span>
+            <span id="last-action">None</span>
+          </div>
+        </div>
+        <p class="permission-note">
+          Emergency disconnect stops the extension socket and automatic reconnection until resumed.
+        </p>
+        <button type="button" class="danger" id="disconnect">Emergency disconnect</button>
+        <button type="button" id="resume" hidden>Resume agent control</button>
       </section>
       <section class="status site" aria-labelledby="site-label">
         <div class="status-row">

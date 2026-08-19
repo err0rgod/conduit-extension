@@ -34,6 +34,11 @@ a site and choose **Allow this site** before an agent can inspect or interact wi
 that origin. The Chromium grant can be revoked from the same popup and remains a
 separate gate from daemon domain/permission policy.
 
+The popup also shows the most recent browser operation and its tab target without
+persisting page or form content. **Emergency disconnect** closes the daemon socket,
+stops automatic reconnection, and displays a red `STOP` badge until the user
+explicitly resumes agent control.
+
 ## Security
 
 The extension connects only to the local Conduit daemon by default. Host access is
