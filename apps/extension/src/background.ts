@@ -24,6 +24,8 @@ import {
   parseConfirmationList,
 } from './confirmation-state';
 import type { ConfirmationCommand } from './confirmation-state';
+import { parseAuditCommand, parseAuditList } from './audit-state';
+import type { AuditListCommand } from './audit-state';
 
 let daemonSocket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -437,7 +439,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   const command = parseControlCommand(message);
   const confirmationCommand = parseConfirmationCommand(message);
-  if (!command && !confirmationCommand) return false;
+  const auditCommand = parseAuditCommand(message);
+  if (!command && !confirmationCommand && !auditCommand) return false;
 
   if (!isTrustedPopupSender(sender)) {
     sendResponse({ ok: false, error: 'This command is available only from the Conduit popup.' });
@@ -446,10 +449,9 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
 
   let task: Promise<unknown>;
   if (command) task = handleControlCommand(command).then(() => ({ ok: true }));
-  else {
-    if (!confirmationCommand) return false;
-    task = handleConfirmationCommand(confirmationCommand);
-  }
+  else if (confirmationCommand) task = handleConfirmationCommand(confirmationCommand);
+  else if (auditCommand) task = handleAuditCommand(auditCommand);
+  else return false;
   void task.then(sendResponse).catch((error: unknown) =>
     sendResponse({
       ok: false,
@@ -483,8 +485,16 @@ async function handleConfirmationCommand(command: ConfirmationCommand): Promise<
   return { ok: true, accepted };
 }
 
+async function handleAuditCommand(command: AuditListCommand): Promise<unknown> {
+  const response = await sendManagementRequest('extension.audit.list', { limit: command.limit });
+  if (!response.success) throw new Error(response.error.message);
+  const events = parseAuditList(response.payload);
+  if (!events) throw new Error('The daemon returned an invalid audit event list.');
+  return { ok: true, events };
+}
+
 function sendManagementRequest(
-  type: 'extension.confirmations.list' | 'extension.confirmations.respond',
+  type: 'extension.confirmations.list' | 'extension.confirmations.respond' | 'extension.audit.list',
   payload: unknown,
 ): Promise<ResponseEnvelope> {
   if (!daemonAuthenticated || daemonSocket?.readyState !== WebSocket.OPEN) {

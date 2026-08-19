@@ -1,7 +1,7 @@
 type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'setup-required';
 
 import { hostPermissionPattern } from '@conduit/browser-core';
-import type { ConfirmationRequest } from '@conduit/protocol';
+import type { AuditEvent, ConfirmationRequest } from '@conduit/protocol';
 
 document.addEventListener('DOMContentLoaded', () => {
   const stateElement = document.getElementById('connection-state') as HTMLSpanElement;
@@ -25,6 +25,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const refreshConfirmations = document.getElementById(
     'refresh-confirmations',
   ) as HTMLButtonElement;
+  const auditCount = document.getElementById('audit-count') as HTMLSpanElement;
+  const auditMessage = document.getElementById('audit-message') as HTMLParagraphElement;
+  const auditList = document.getElementById('audit-list') as HTMLDivElement;
+  const refreshAudit = document.getElementById('refresh-audit') as HTMLButtonElement;
   let activePattern: string | undefined;
 
   const render = (values: {
@@ -50,7 +54,10 @@ document.addEventListener('DOMContentLoaded', () => {
       .get(['connectionState', 'connectionMessage', 'daemonPort'])
       .then(render);
     void renderControlState();
-    if (changes.connectionState) void renderConfirmations();
+    if (changes.connectionState) {
+      void renderConfirmations();
+      void renderAuditEvents();
+    }
   });
 
   const renderControlState = async () => {
@@ -187,6 +194,48 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshConfirmations.addEventListener('click', () => void renderConfirmations());
   void renderConfirmations();
 
+  const renderAuditEvents = async () => {
+    auditCount.textContent = 'checking';
+    refreshAudit.disabled = true;
+    try {
+      const response = await sendPopupMessage<AuditListResult>({
+        type: 'conduit.audit.list',
+        limit: 20,
+      });
+      if (!response.ok) throw new Error(response.error);
+      auditList.replaceChildren(...response.events.map((event) => auditEventCard(event)));
+      auditCount.textContent = String(response.events.length);
+      auditMessage.textContent = response.events.length
+        ? 'Sensitive values are redacted; arbitrary event details are hidden here.'
+        : 'No audit events are available for this daemon session.';
+    } catch (error) {
+      auditList.replaceChildren();
+      auditCount.textContent = 'unavailable';
+      auditMessage.textContent =
+        error instanceof Error ? error.message : 'Could not load recent audit events.';
+    } finally {
+      refreshAudit.disabled = false;
+    }
+  };
+
+  const auditEventCard = (event: AuditEvent): HTMLElement => {
+    const card = document.createElement('article');
+    card.className = 'audit-event';
+    card.dataset.outcome = event.outcome;
+    const type = document.createElement('p');
+    type.className = 'audit-type';
+    type.textContent = `${event.type} / ${event.outcome}`;
+    const meta = document.createElement('p');
+    meta.className = 'audit-meta';
+    const scope = [event.operation, event.domain].filter(Boolean).join(' / ');
+    meta.textContent = `${new Date(event.timestamp).toLocaleTimeString()}${scope ? ` / ${scope}` : ''}`;
+    card.append(type, meta);
+    return card;
+  };
+
+  refreshAudit.addEventListener('click', () => void renderAuditEvents());
+  void renderAuditEvents();
+
   allowSiteButton.addEventListener('click', async () => {
     if (!activePattern) return;
     allowSiteButton.disabled = true;
@@ -233,6 +282,8 @@ type ConfirmationListResult =
   { ok: true; confirmations: ConfirmationRequest[] } | { ok: false; error: string };
 
 type ConfirmationDecisionResult = { ok: true; accepted: boolean } | { ok: false; error: string };
+
+type AuditListResult = { ok: true; events: AuditEvent[] } | { ok: false; error: string };
 
 function sendPopupMessage<T>(message: unknown): Promise<T> {
   return new Promise((resolve, reject) => {
