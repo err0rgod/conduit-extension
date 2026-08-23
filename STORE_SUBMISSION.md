@@ -17,8 +17,10 @@ account recovery must be controlled by the project owner.
 - `scripting`: performs approved actions only on origins separately granted by the user.
 - `storage`: preserves connection, emergency-pause, and privacy-safe status state.
 - `activeTab`: enables user-initiated active-tab operations such as screenshots.
-- Optional HTTP/HTTPS hosts: requested per site from the popup; no production host is required
-  at install time.
+- Optional HTTP/HTTPS hosts: requested per site by default, or as the exact `http://*/*` and
+  `https://*/*` pair after the user explicitly clicks **Allow all sites** in the popup. No host
+  is required at install time, the background worker never makes the broad request, and the
+  permission can be revoked from the popup.
 - Optional `debugger`: requested explicitly for hover, physical key events, and approved uploads.
 - Optional `downloads`: requested explicitly to observe bounded recent download status.
 

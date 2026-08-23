@@ -36,8 +36,16 @@ host. The extension then connects automatically without a pairing code.
 
 Conduit does not receive blanket website access at installation. Open the popup on
 a site and choose **Allow this site** before an agent can inspect or interact with
-that origin. The Chromium grant can be revoked from the same popup and remains a
-separate gate from daemon domain/permission policy.
+that origin. Per-site access is the recommended default, and the Chromium grant can
+be revoked from the same popup.
+
+For an explicitly broad local workflow, **Allow all sites** requests exactly
+`http://*/*` and `https://*/*` inside the popup click gesture and Chromium displays
+its native permission prompt. Chromium owns the resulting permission state; Conduit
+does not persist a separate flag, and the background service worker never requests
+those origins. **Revoke all sites** removes the two broad patterns. Both controls
+remain separate from daemon capability and domain policy, so no browser host grant
+bypasses those enforcement points.
 
 The popup also shows the most recent browser operation and its tab target without
 persisting page or form content. **Emergency disconnect** closes the daemon socket,
@@ -54,8 +62,8 @@ redacted by the daemon and arbitrary event details remain hidden from this view.
 
 Optional Chromium capabilities remain disabled by default. The popup lets the user
 grant or revoke advanced interaction (`debugger`) and recent download visibility
-(`downloads`), revoke every granted site, and inspect the current authenticated daemon
-session start and last-activity time.
+(`downloads`), explicitly grant or revoke all HTTP/HTTPS sites, and inspect the current
+authenticated daemon session start and last-activity time.
 
 `pnpm extension:release` creates a versioned ZIP and SHA-256 file under `artifacts/`.
 Tagged releases publish those exact files after the complete validation suite passes.
@@ -63,9 +71,10 @@ Tagged releases publish those exact files after the complete validation suite pa
 ## Security
 
 The extension connects only to the local Conduit daemon by default. Host access is
-optional and limited to explicitly approved HTTP/HTTPS origins. Page content is
-untrusted data and cannot grant permissions. Do not install extension artifacts
-from untrusted sources.
+optional: users can approve one HTTP/HTTPS origin at a time or deliberately request
+the two broad HTTP/HTTPS patterns from the popup. Page content is untrusted data and
+cannot grant permissions. Chromium host access never replaces daemon policy. Do not
+install extension artifacts from untrusted sources.
 
 ## License
 

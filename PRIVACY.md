@@ -7,10 +7,12 @@ advertising, telemetry, or a vendor-operated cloud service.
 
 ## Data the extension can access
 
-The extension can access tab metadata and, only after the user grants a specific HTTP or
-HTTPS site through Chromium, page content needed to perform an approved browser action.
-Optional advanced-interaction and download permissions remain disabled until the user grants
-them through the Conduit popup.
+The extension can access tab metadata and, only after the user grants host access through
+Chromium, page content needed to perform an approved browser action. The recommended default
+is a specific HTTP or HTTPS site. The user may also explicitly choose **Allow all sites** in
+the popup, which requests only `http://*/*` and `https://*/*` through Chromium's native
+permission prompt. Optional advanced-interaction and download permissions remain disabled
+until the user grants them through the Conduit popup.
 
 Page snapshots, visible text, screenshots, form actions, upload paths, and download metadata
 are sent only to the authenticated Conduit daemon on `127.0.0.1`. The daemon applies its own
@@ -19,9 +21,10 @@ permission, domain, confirmation, audit-redaction, and retention policies.
 ## Local storage
 
 The extension stores only operational settings needed to reconnect to the local daemon,
-explicit pause state, connection status, permission state maintained by Chromium, and bounded
-privacy-safe activity metadata. It does not intentionally persist page content, form values,
-screenshots, cookies, or arbitrary audit details.
+explicit pause state, connection status, and bounded privacy-safe activity metadata. Chromium
+maintains both per-site and all-sites host permission state; Conduit does not persist a second
+broad-access flag. It does not intentionally persist page content, form values, screenshots,
+cookies, or arbitrary audit details.
 
 ## Sharing and sale
 
@@ -32,9 +35,11 @@ Conduit deployment.
 
 ## User controls
 
-Users can revoke individual or all site grants, revoke optional Chromium capabilities, pause
-all agent control, remove the extension, or run `conduit uninstall`. Removing the extension
-clears extension-local storage through Chromium's normal uninstall behavior.
+Users can revoke an individual site or use **Revoke all sites** to remove the broad HTTP/HTTPS
+patterns, revoke optional Chromium capabilities, pause all agent control, remove the extension,
+or run `conduit uninstall`. Daemon domain and capability policy remains independently enforced.
+Removing the extension clears extension-local storage through Chromium's normal uninstall
+behavior.
 
 ## Security reports and contact
 

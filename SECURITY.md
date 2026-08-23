@@ -25,4 +25,8 @@ the free-form `details` field from the UI even after daemon redaction.
 
 Optional `debugger` and `downloads` capabilities are disabled until explicitly
 granted from the popup and can be revoked there. HTTP/HTTPS site grants remain
-optional and can be revoked individually or all at once.
+optional. Per-site access is the default path. **Allow all sites** requests exactly
+`http://*/*` and `https://*/*` only inside the popup click gesture and Chromium's
+native prompt; it is never requested from the background service worker. Chromium
+owns this permission state, and **Revoke all sites** removes those two broad patterns.
+Neither control bypasses daemon capability, domain, confirmation, or audit policy.
