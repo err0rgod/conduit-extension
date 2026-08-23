@@ -2,6 +2,8 @@
 
 Effective date: 2026-08-23
 
+Public policy URL: https://conduit.zerodaily.in/#/privacy
+
 Conduit is a local-first browser extension. The extension does not include analytics,
 advertising, telemetry, or a vendor-operated cloud service.
 

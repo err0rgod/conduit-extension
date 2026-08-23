@@ -41,7 +41,7 @@ recovery must be controlled by the project owner.
 - Product name: `Conduit Extension`
 - Short description: `Secure local-first browser control for AI agents.`
 - Category: Developer Tools or Productivity
-- Privacy policy: publish [PRIVACY.md](PRIVACY.md) at a stable HTTPS URL.
+- Privacy policy: `https://conduit.zerodaily.in/#/privacy`.
 - Support URL: `https://github.com/err0rgod/conduit-extension/issues`
 - Homepage: `https://github.com/err0rgod/conduit`
 - Use `apps/extension/assets/icons/icon-128.png` as the product icon.
