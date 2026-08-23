@@ -25,6 +25,9 @@ async function build() {
 
   fs.copyFileSync(path.join(root, 'manifest.json'), path.join(distDir, 'manifest.json'));
   fs.copyFileSync(path.join(root, 'popup.html'), path.join(distDir, 'popup.html'));
+  fs.cpSync(path.join(root, 'assets', 'icons'), path.join(distDir, 'icons'), {
+    recursive: true,
+  });
 }
 
 build().catch((error) => {

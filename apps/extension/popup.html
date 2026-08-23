@@ -138,6 +138,29 @@
         text-overflow: ellipsis;
         white-space: nowrap;
       }
+      .capability-list {
+        display: grid;
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .capability-card {
+        border-top: 1px solid #252a36;
+        padding-top: 10px;
+      }
+      .capability-card:first-child {
+        border-top: 0;
+        padding-top: 0;
+      }
+      .capability-card strong {
+        font-size: 12px;
+      }
+      .capability-state {
+        color: #fca5a5;
+        font-size: 11px;
+      }
+      .capability-state[data-granted='true'] {
+        color: #6ee7b7;
+      }
       .permission-note {
         margin: 10px 0 0;
         color: #959daf;
@@ -273,6 +296,14 @@
             <span class="label">Last action</span>
             <span id="last-action">None</span>
           </div>
+          <div class="activity-row">
+            <span class="label">Session started</span>
+            <span id="session-started">No authenticated session</span>
+          </div>
+          <div class="activity-row">
+            <span class="label">Daemon activity</span>
+            <span id="session-activity">None</span>
+          </div>
         </div>
         <p class="permission-note">
           Emergency disconnect stops the extension socket and automatic reconnection until resumed.
@@ -293,6 +324,19 @@
         </p>
         <button type="button" id="allow-site">Allow this site</button>
         <button type="button" class="secondary" id="revoke-site" hidden>Revoke site access</button>
+      </section>
+      <section class="status site" aria-labelledby="capabilities-label">
+        <div class="status-row">
+          <span class="label" id="capabilities-label">Chromium capabilities</span>
+          <span><strong id="granted-site-count">0</strong> site grants</span>
+        </div>
+        <p class="permission-note" id="capability-message">
+          Advanced capabilities remain off until you approve Chromium's permission prompt.
+        </p>
+        <div class="capability-list" id="capability-list"></div>
+        <button type="button" class="secondary" id="revoke-all-sites">
+          Revoke all site access
+        </button>
       </section>
       <section class="status site" aria-labelledby="confirmations-label">
         <div class="status-row">
