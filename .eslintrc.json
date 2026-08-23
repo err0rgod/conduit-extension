@@ -1,5 +1,11 @@
 {
-  "ignorePatterns": ["**/dist/**", "node_modules/**", "playwright-report/**", "test-results/**"],
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/dist-*/**",
+    "node_modules/**",
+    "playwright-report/**",
+    "test-results/**"
+  ],
   "env": {
     "node": true,
     "es2022": true

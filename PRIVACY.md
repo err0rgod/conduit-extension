@@ -8,9 +8,9 @@ advertising, telemetry, or a vendor-operated cloud service.
 ## Data the extension can access
 
 The extension can access tab metadata and, only after the user grants host access through
-Chromium, page content needed to perform an approved browser action. The recommended default
+the browser, page content needed to perform an approved browser action. The recommended default
 is a specific HTTP or HTTPS site. The user may also explicitly choose **Allow all sites** in
-the popup, which requests only `http://*/*` and `https://*/*` through Chromium's native
+the popup, which requests only `http://*/*` and `https://*/*` through the browser's native
 permission prompt. Optional advanced-interaction and download permissions remain disabled
 until the user grants them through the Conduit popup.
 
@@ -21,7 +21,7 @@ permission, domain, confirmation, audit-redaction, and retention policies.
 ## Local storage
 
 The extension stores only operational settings needed to reconnect to the local daemon,
-explicit pause state, connection status, and bounded privacy-safe activity metadata. Chromium
+explicit pause state, connection status, and bounded privacy-safe activity metadata. The browser
 maintains both per-site and all-sites host permission state; Conduit does not persist a second
 broad-access flag. It does not intentionally persist page content, form values, screenshots,
 cookies, or arbitrary audit details.
@@ -36,7 +36,7 @@ Conduit deployment.
 ## User controls
 
 Users can revoke an individual site or use **Revoke all sites** to remove the broad HTTP/HTTPS
-patterns, revoke optional Chromium capabilities, pause all agent control, remove the extension,
+patterns, revoke optional browser capabilities, pause all agent control, remove the extension,
 or run `conduit uninstall`. Daemon domain and capability policy remains independently enforced.
 Removing the extension clears extension-local storage through Chromium's normal uninstall
 behavior.
@@ -46,3 +46,9 @@ behavior.
 Report vulnerabilities privately through this repository's GitHub Security Advisories, as
 described in [SECURITY.md](SECURITY.md). Privacy questions may be opened as a GitHub discussion
 or issue as long as they do not contain sensitive browser data.
+
+## Firefox disclosure
+
+The Firefox package declares `websiteActivity` and `websiteContent` because URLs, tab metadata,
+and user-approved page content are transmitted from the extension to the user's local Conduit
+daemon. This disclosure does not indicate vendor collection or cloud transmission.

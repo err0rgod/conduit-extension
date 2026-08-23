@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.3] - 2026-08-23
+
+### Added
+
+- One key-free Chromium store archive shared by Chrome, Edge, and Brave.
+- A Firefox archive with Gecko identity, event-page background, and current AMO data disclosure.
+- Deterministic checksums and archive-manifest validation for every browser target.
+
+### Fixed
+
+- Removed the development-only manifest `key` from browser-store uploads, fixing the Chrome Web
+  Store rejection.
+- Firefox no longer exposes Chromium-only debugger permission controls and reports unsupported
+  advanced interactions clearly.
+
 ## [0.1.2] - 2026-08-23
 
 ### Added

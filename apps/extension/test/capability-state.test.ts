@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { OPTIONAL_CAPABILITIES, parseActiveSession } from '../src/capability-state';
+import {
+  OPTIONAL_CAPABILITIES,
+  optionalCapabilitiesForRuntimeUrl,
+  parseActiveSession,
+} from '../src/capability-state';
 
 describe('extension capability state', () => {
   it('defines explicit UI controls for every optional Chromium permission', () => {
@@ -7,6 +11,19 @@ describe('extension capability state', () => {
       'debugger',
       'downloads',
     ]);
+  });
+
+  it('hides Chromium-only debugger controls in Firefox', () => {
+    expect(
+      optionalCapabilitiesForRuntimeUrl('moz-extension://example/').map(
+        ({ permission }) => permission,
+      ),
+    ).toEqual(['downloads']);
+    expect(
+      optionalCapabilitiesForRuntimeUrl('chrome-extension://example/').map(
+        ({ permission }) => permission,
+      ),
+    ).toEqual(['debugger', 'downloads']);
   });
 
   it('accepts only bounded privacy-safe session timestamps', () => {
