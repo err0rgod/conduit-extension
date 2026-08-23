@@ -1,12 +1,12 @@
 # Changelog
 
-## [0.1.2] - Unreleased
+## [0.1.2] - 2026-08-23
 
 ### Added
 
 - Explicit popup controls for optional advanced-interaction and download permissions.
 - Authenticated-session start and last-activity visibility without page content or tokens.
-- Revoke-all site access control.
+- Opt-in allow-all and revoke-all site access controls using Chromium's runtime permission prompt.
 - Deterministic extension icons, versioned ZIP packaging, SHA-256 output, and release validation.
 - Browser-store privacy, identity, permission-justification, and submission documentation.
 
