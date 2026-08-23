@@ -22,6 +22,12 @@ export const OPTIONAL_CAPABILITIES: ReadonlyArray<{
   },
 ];
 
+export function optionalCapabilitiesForRuntimeUrl(runtimeUrl: string) {
+  return runtimeUrl.startsWith('moz-extension://')
+    ? OPTIONAL_CAPABILITIES.filter((capability) => capability.permission !== 'debugger')
+    : OPTIONAL_CAPABILITIES;
+}
+
 export function parseActiveSession(value: unknown): ActiveSession | undefined {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
   if (Object.keys(value).some((key) => !['authenticatedAt', 'lastActivityAt'].includes(key))) {

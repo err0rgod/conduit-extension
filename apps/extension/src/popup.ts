@@ -2,7 +2,7 @@ type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'setup-requ
 
 import { hostPermissionPattern } from '@conduit/browser-core';
 import type { AuditEvent, ConfirmationRequest } from '@conduit/protocol';
-import { OPTIONAL_CAPABILITIES, parseActiveSession } from './capability-state';
+import { optionalCapabilitiesForRuntimeUrl, parseActiveSession } from './capability-state';
 import type { OptionalCapabilityPermission } from './capability-state';
 import { hasAllSiteAccess, requestAllSiteAccess, revokeAllSiteAccess } from './site-permissions';
 
@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const grantedSiteCount = document.getElementById('granted-site-count') as HTMLSpanElement;
   const revokeAllSitesButton = document.getElementById('revoke-all-sites') as HTMLButtonElement;
   const allowAllSitesButton = document.getElementById('allow-all-sites') as HTMLButtonElement;
+  const optionalCapabilities = optionalCapabilitiesForRuntimeUrl(chrome.runtime.getURL(''));
   let activePattern: string | undefined;
 
   const render = (values: {
@@ -140,7 +141,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const permissions = await chrome.permissions.getAll();
     const grantedPermissions = new Set(permissions.permissions ?? []);
     capabilityList.replaceChildren(
-      ...OPTIONAL_CAPABILITIES.map((capability) => {
+      ...optionalCapabilities.map((capability) => {
         const granted = grantedPermissions.has(capability.permission);
         const card = document.createElement('article');
         card.className = 'capability-card';

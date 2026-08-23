@@ -10,11 +10,10 @@ the main Conduit repository.
 ## Status
 
 Pre-1.0 migration repository. The extension builds and its browser engine and
-protocol tests run independently. It has a deterministic unpacked ID and discovers
-local connection settings through Chromium Native Messaging. It is supported as a
-checksummed unpacked extension; browser-store publication remains gated on preserving
-the pinned extension identity and completing the private-store verification in
-[STORE_SUBMISSION.md](STORE_SUBMISSION.md).
+protocol tests run independently. The unpacked build has a deterministic Chromium ID,
+while browser-store builds omit the manifest `key` and use identities assigned by each
+store. Conduit trusts only explicitly configured store identities through Native
+Messaging. See [STORE_SUBMISSION.md](STORE_SUBMISSION.md).
 
 ## Development
 
@@ -30,9 +29,10 @@ pnpm extension:release
 pnpm --filter @conduit/extension release:check
 ```
 
-Load `apps/extension/dist` from `chrome://extensions` or `edge://extensions` with
-Developer mode enabled. Run `conduit setup` once to register the per-user native
-host. The extension then connects automatically without a pairing code.
+Load `apps/extension/dist` from `chrome://extensions`, `edge://extensions`, or
+`brave://extensions` with Developer mode enabled. Run `conduit setup` once to register
+the per-user native host. The unpacked extension then connects automatically without a
+pairing code.
 
 Conduit does not receive blanket website access at installation. Open the popup on
 a site and choose **Allow this site** before an agent can inspect or interact with
@@ -60,13 +60,22 @@ The popup also requests at most 20 recent structured audit events. It shows only
 event type, outcome, operation/domain scope, and time; sensitive values are
 redacted by the daemon and arbitrary event details remain hidden from this view.
 
-Optional Chromium capabilities remain disabled by default. The popup lets the user
+Optional browser capabilities remain disabled by default. The popup lets the user
 grant or revoke advanced interaction (`debugger`) and recent download visibility
 (`downloads`), explicitly grant or revoke all HTTP/HTTPS sites, and inspect the current
-authenticated daemon session start and last-activity time.
+authenticated daemon session start and last-activity time. Firefox omits the
+Chromium-only `debugger` capability, so hover, physical key input, and approved file
+uploads report that advanced interaction is unsupported there.
 
-`pnpm extension:release` creates a versioned ZIP and SHA-256 file under `artifacts/`.
-Tagged releases publish those exact files after the complete validation suite passes.
+`pnpm extension:release` creates three checksummed artifacts under `artifacts/`:
+
+- `conduit-extension-chromium-store-v<version>.zip` for Chrome Web Store, Microsoft
+  Edge Add-ons, and Brave.
+- `conduit-extension-firefox-v<version>.zip` for Firefox Add-ons.
+- `conduit-extension-unpacked-v<version>.zip` for deterministic local development.
+
+Only the unpacked artifact contains the development `key`. Tagged releases publish
+these exact files after the complete validation suite passes.
 
 ## Security
 

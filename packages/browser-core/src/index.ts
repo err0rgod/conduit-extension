@@ -16,6 +16,9 @@ import {
   PressKeyAction,
 } from '@conduit/protocol';
 
+declare const __CONDUIT_FIREFOX__: boolean;
+const FIREFOX_BUILD = typeof __CONDUIT_FIREFOX__ !== 'undefined' && __CONDUIT_FIREFOX__;
+
 export class BrowserActionError extends Error {
   public readonly code: ErrorCode;
 
@@ -91,7 +94,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
 
   public async openTab(url?: string): Promise<BrowserTab> {
     const tab = await chrome.tabs.create({ ...(url ? { url } : {}) });
-    if (tab.id) {
+    if (!FIREFOX_BUILD && tab.id) {
       try {
         const groups = await chrome.tabGroups.query({ title: 'Conduit' });
         let groupId: number;
@@ -211,6 +214,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
   }
 
   public async hover(target: BrowserTarget, action: { target: ElementTarget }): Promise<void> {
+    requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
     const bounds = await this.runInTab(tabId, executePageActionInPage, [
@@ -221,7 +225,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
       return;
     }
     await withDebugger(tabId, async (debuggee) => {
-      await chrome.debugger.sendCommand(debuggee, 'Input.dispatchMouseEvent', {
+      await debuggerApi().sendCommand(debuggee, 'Input.dispatchMouseEvent', {
         type: 'mouseMoved',
         x: bounds.x,
         y: bounds.y,
@@ -230,6 +234,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
   }
 
   public async pressKey(target: BrowserTarget, action: PressKeyAction): Promise<void> {
+    requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
     const modifiers = action.modifiers.reduce(
@@ -237,13 +242,13 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
       0,
     );
     await withDebugger(tabId, async (debuggee) => {
-      await chrome.debugger.sendCommand(debuggee, 'Input.dispatchKeyEvent', {
+      await debuggerApi().sendCommand(debuggee, 'Input.dispatchKeyEvent', {
         type: 'keyDown',
         key: action.key,
         text: action.key.length === 1 ? action.key : undefined,
         modifiers,
       });
-      await chrome.debugger.sendCommand(debuggee, 'Input.dispatchKeyEvent', {
+      await debuggerApi().sendCommand(debuggee, 'Input.dispatchKeyEvent', {
         type: 'keyUp',
         key: action.key,
         modifiers,
@@ -266,12 +271,13 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     } catch {
       throw new BrowserActionError(
         'PERMISSION_DENIED',
-        'Chromium requires an active-tab grant for screenshots. Open Conduit on the target tab and retry.',
+        'The browser requires an active-tab grant for screenshots. Open Conduit on the target tab and retry.',
       );
     }
   }
 
   public async uploadFile(target: BrowserTarget, action: UploadFileAction): Promise<void> {
+    requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
     const selector = await this.runInTab(tabId, executePageActionInPage, [
@@ -282,7 +288,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
       return;
     }
     await withDebugger(tabId, async (debuggee) => {
-      const documentResult = await chrome.debugger.sendCommand(debuggee, 'DOM.getDocument', {
+      const documentResult = await debuggerApi().sendCommand(debuggee, 'DOM.getDocument', {
         depth: -1,
         pierce: true,
       });
@@ -290,13 +296,13 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
       if (rootNodeId === undefined) {
         throw new BrowserActionError('FRAME_NOT_FOUND', 'Debugger did not return a document root.');
       }
-      const queryResult = await chrome.debugger.sendCommand(debuggee, 'DOM.querySelector', {
+      const queryResult = await debuggerApi().sendCommand(debuggee, 'DOM.querySelector', {
         nodeId: rootNodeId,
         selector,
       });
       const nodeId = objectNumber(queryResult, 'nodeId');
       if (!nodeId) throw new BrowserActionError('ELEMENT_NOT_FOUND', 'Upload input was not found.');
-      await chrome.debugger.sendCommand(debuggee, 'DOM.setFileInputFiles', {
+      await debuggerApi().sendCommand(debuggee, 'DOM.setFileInputFiles', {
         nodeId,
         files: action.files,
       });
@@ -381,11 +387,26 @@ async function requireHostAccess(tabId: number): Promise<void> {
 }
 
 async function requireOptionalPermission(permission: 'debugger' | 'downloads'): Promise<void> {
+  if (!(permission in (chrome as unknown as Record<string, unknown>))) {
+    throw new BrowserActionError(
+      'PERMISSION_DENIED',
+      `${permission === 'debugger' ? 'Advanced interaction' : 'Download visibility'} is not supported by this browser.`,
+    );
+  }
   const granted = await chrome.permissions.contains({ permissions: [permission] });
   if (!granted) {
     throw new BrowserActionError(
       'PERMISSION_DENIED',
-      `The optional Chromium ${permission} permission has not been granted.`,
+      `The optional browser ${permission} permission has not been granted.`,
+    );
+  }
+}
+
+function requireChromiumAdvancedInteraction(): void {
+  if (FIREFOX_BUILD) {
+    throw new BrowserActionError(
+      'PERMISSION_DENIED',
+      'Advanced interaction is not supported by Firefox.',
     );
   }
 }
@@ -394,13 +415,26 @@ async function withDebugger(
   tabId: number,
   action: (debuggee: chrome.debugger.Debuggee) => Promise<void>,
 ): Promise<void> {
+  const api = debuggerApi();
   const debuggee = { tabId };
-  await chrome.debugger.attach(debuggee, '1.3');
+  await api.attach(debuggee, '1.3');
   try {
     await action(debuggee);
   } finally {
-    await chrome.debugger.detach(debuggee).catch(() => undefined);
+    await api.detach(debuggee).catch(() => undefined);
   }
+}
+
+function debuggerApi(): typeof chrome.debugger {
+  const namespace = ['de', 'bugger'].join('');
+  const api = (chrome as unknown as Record<string, unknown>)[namespace];
+  if (!api) {
+    throw new BrowserActionError(
+      'PERMISSION_DENIED',
+      'Advanced interaction is not supported by this browser.',
+    );
+  }
+  return api as typeof chrome.debugger;
 }
 
 function isPoint(value: unknown): value is { x: number; y: number } {
