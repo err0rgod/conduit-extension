@@ -31,9 +31,14 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm extension:package
+      - run: pnpm --filter @conduit/extension release:check
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: matrix.os == 'ubuntu-latest'
         with:
           name: conduit-extension-${{ github.sha }}
-          path: apps/extension/dist/
+          path: |
+            apps/extension/dist/
+            artifacts/conduit-extension-*.zip
+            artifacts/conduit-extension-*.zip.sha256
           retention-days: 14

@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm extension:package
+      - run: pnpm --filter @conduit/extension release:check
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+      - name: Publish checksummed extension archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "${{ github.ref_name }}"
+          artifacts/conduit-extension-*.zip
+          artifacts/conduit-extension-*.zip.sha256
+          --verify-tag
+          --generate-notes
+          --title "Conduit Extension ${{ github.ref_name }}"

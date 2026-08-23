@@ -1,6 +1,6 @@
 {
   "name": "conduit-extension-repository",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "packageManager": "pnpm@9.15.9",
   "engines": {
@@ -10,6 +10,7 @@
     "build": "pnpm -r build",
     "extension:build": "pnpm --filter @conduit/extension build",
     "extension:package": "pnpm --filter @conduit/extension package",
+    "extension:release": "pnpm --filter @conduit/extension package",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

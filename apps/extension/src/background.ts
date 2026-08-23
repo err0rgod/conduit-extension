@@ -1,10 +1,8 @@
 import { BrowserActionError, ExtensionBrowserEngine } from '@conduit/browser-core';
 import {
   BrowserRequestEnvelope,
-  BrowserRequestEnvelopeSchema,
   ExtensionManagementRequestSchema,
   ResponseEnvelope,
-  ResponseEnvelopeSchema,
   createEnvelopeBase,
   createErrorResponse,
   createSuccessResponse,
@@ -26,12 +24,16 @@ import {
 import type { ConfirmationCommand } from './confirmation-state';
 import { parseAuditCommand, parseAuditList } from './audit-state';
 import type { AuditListCommand } from './audit-state';
+import { parseDaemonMessage } from './daemon-message';
 
 let daemonSocket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let connectionAttemptInFlight = false;
 let controlPaused = false;
 let daemonAuthenticated = false;
+let authenticatedAt: number | undefined;
+
+const DAEMON_AUTHENTICATION_TIMEOUT_MS = 10_000;
 
 interface PendingManagementRequest {
   resolve: (response: ResponseEnvelope) => void;
@@ -68,6 +70,7 @@ async function connectDaemon(): Promise<void> {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
+  setConnectionBadge(false);
   setConnectionState('connecting', 'Discovering the local Conduit daemon.');
 
   try {
@@ -96,31 +99,48 @@ async function connectDaemon(): Promise<void> {
 
 function openDaemonSocket(port: number, token: string): void {
   daemonAuthenticated = false;
-  daemonSocket = new WebSocket(`ws://127.0.0.1:${port}`);
+  authenticatedAt = undefined;
+  const socket = new WebSocket(`ws://127.0.0.1:${port}`);
+  daemonSocket = socket;
+  const authenticationTimer = setTimeout(() => {
+    if (daemonSocket !== socket || daemonAuthenticated) return;
+    setDiagnostic('authentication-timeout');
+    setConnectionState('disconnected', 'The local Conduit daemon did not authenticate in time.');
+    socket.close(4001, 'Authentication timeout');
+  }, DAEMON_AUTHENTICATION_TIMEOUT_MS);
 
-  daemonSocket.onopen = () => {
-    daemonSocket?.send(JSON.stringify({ type: 'auth', payload: { token } }));
+  socket.onopen = () => {
+    socket.send(JSON.stringify({ type: 'auth', payload: { token } }));
   };
 
-  daemonSocket.onmessage = (event) => {
+  socket.onmessage = (event) => {
     setDiagnostic('message-received');
-    void handleDaemonMessage(event.data);
+    if (typeof event.data !== 'string') {
+      setDiagnostic('invalid-message-type');
+      socket.close(4003, 'Text messages are required');
+      return;
+    }
+    void handleDaemonMessage(event.data, socket, authenticationTimer);
   };
 
   let pingInterval: ReturnType<typeof setInterval> | null = null;
-  daemonSocket.addEventListener('open', () => {
+  socket.addEventListener('open', () => {
     pingInterval = setInterval(() => {
-      if (daemonSocket?.readyState === WebSocket.OPEN) {
-        daemonSocket.send(JSON.stringify(createSuccessResponse({ ping: true }, 'keepalive')));
+      if (daemonAuthenticated && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(createSuccessResponse({ keepalive: true })));
       }
     }, 20_000);
   });
 
-  daemonSocket.onclose = () => {
+  socket.onclose = () => {
+    clearTimeout(authenticationTimer);
     if (pingInterval) clearInterval(pingInterval);
+    if (daemonSocket !== socket) return;
     daemonAuthenticated = false;
+    authenticatedAt = undefined;
     rejectPendingManagementRequests('The Conduit daemon connection closed.');
     daemonSocket = null;
+    void chrome.storage.local.remove('activeSession');
     setConnectionBadge(false);
     if (controlPaused) {
       setConnectionState('disconnected', 'Emergency disconnect is active.');
@@ -131,7 +151,7 @@ function openDaemonSocket(port: number, token: string): void {
     }
   };
 
-  daemonSocket.onerror = (error) => {
+  socket.onerror = (error) => {
     console.error('Conduit daemon connection error', error);
   };
 }
@@ -159,7 +179,12 @@ function scheduleReconnect(): void {
   reconnectTimer = setTimeout(() => void connectDaemon(), 5_000);
 }
 
-async function handleDaemonMessage(rawData: string): Promise<void> {
+async function handleDaemonMessage(
+  rawData: string,
+  socket: WebSocket,
+  authenticationTimer: ReturnType<typeof setTimeout>,
+): Promise<void> {
+  if (daemonSocket !== socket) return;
   const parsed = parseJson(rawData);
   if (!parsed.ok) {
     setDiagnostic('invalid-json');
@@ -167,36 +192,57 @@ async function handleDaemonMessage(rawData: string): Promise<void> {
     return;
   }
 
-  if (isAuthSuccess(parsed.value)) {
-    daemonAuthenticated = true;
-    setDiagnostic('authenticated');
-    setConnectionBadge(true);
-    setConnectionState('connected', 'Connected securely to the local Conduit daemon.');
-    return;
+  const message = parseDaemonMessage(parsed.value, daemonAuthenticated);
+  switch (message.kind) {
+    case 'auth-success': {
+      clearTimeout(authenticationTimer);
+      daemonAuthenticated = true;
+      authenticatedAt = Date.now();
+      setDiagnostic('authenticated');
+      setConnectionBadge(true);
+      setConnectionState('connected', 'Connected securely to the local Conduit daemon.');
+      recordActiveSession();
+      return;
+    }
+    case 'auth-failure': {
+      clearTimeout(authenticationTimer);
+      daemonAuthenticated = false;
+      authenticatedAt = undefined;
+      setDiagnostic('authentication-failed', undefined, undefined, message.message);
+      console.error('Authentication failed with Conduit daemon.');
+      void chrome.storage.local.remove(['daemonToken', 'activeSession']);
+      socket.close(4003, 'Authentication failed');
+      return;
+    }
+    case 'authentication-required': {
+      setDiagnostic('authentication-required');
+      sendToDaemon(
+        createErrorResponse(
+          'AUTHENTICATION_REQUIRED',
+          'The daemon must authenticate before sending extension requests.',
+        ),
+      );
+      socket.close(4003, 'Authentication required');
+      return;
+    }
+    case 'management-response': {
+      recordActiveSession();
+      if (resolveManagementResponse(message.response)) return;
+      setDiagnostic('response-unmatched');
+      return;
+    }
+    case 'browser-request': {
+      recordActiveSession();
+      await executeBrowserRequest(message.request);
+      return;
+    }
+    case 'invalid': {
+      setDiagnostic('request-invalid', undefined, undefined, message.message);
+      sendToDaemon(
+        createErrorResponse('INVALID_REQUEST', 'Daemon request failed protocol validation.'),
+      );
+    }
   }
-
-  if (isAuthFailure(parsed.value)) {
-    daemonAuthenticated = false;
-    setDiagnostic('authentication-failed');
-    console.error('Authentication failed with Conduit daemon.');
-    void chrome.storage.local.remove('daemonToken');
-    daemonSocket?.close();
-    return;
-  }
-
-  const managementResponse = ResponseEnvelopeSchema.safeParse(parsed.value);
-  if (managementResponse.success && resolveManagementResponse(managementResponse.data)) return;
-
-  const request = BrowserRequestEnvelopeSchema.safeParse(parsed.value);
-  if (!request.success) {
-    setDiagnostic('request-invalid', undefined, undefined, request.error.message);
-    sendToDaemon(
-      createErrorResponse('INVALID_REQUEST', 'Daemon request failed protocol validation.'),
-    );
-    return;
-  }
-
-  await executeBrowserRequest(request.data);
 }
 
 async function executeBrowserRequest(request: BrowserRequestEnvelope): Promise<void> {
@@ -388,31 +434,22 @@ function parseJson(value: string): { ok: true; value: unknown } | { ok: false } 
   }
 }
 
-function isAuthSuccess(value: unknown): value is { type: 'auth_success' } {
-  return (
-    typeof value === 'object' && value !== null && 'type' in value && value.type === 'auth_success'
-  );
-}
-
-function isAuthFailure(
-  value: unknown,
-): value is { type: 'error'; error: { code: 'AUTHENTICATION_FAILED' } } {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    'type' in value &&
-    value.type === 'error' &&
-    'error' in value &&
-    typeof value.error === 'object' &&
-    value.error !== null &&
-    'code' in value.error &&
-    value.error.code === 'AUTHENTICATION_FAILED'
-  );
+function recordActiveSession(): void {
+  if (!authenticatedAt) return;
+  void chrome.storage.local
+    .set({
+      activeSession: {
+        authenticatedAt,
+        lastActivityAt: Date.now(),
+      },
+    })
+    .catch((error: unknown) => console.warn('Could not record Conduit session status.', error));
 }
 
 void initializeControl();
 
 async function initializeControl(): Promise<void> {
+  await chrome.storage.local.remove('activeSession');
   const stored = await chrome.storage.local.get('controlPaused');
   controlPaused = stored.controlPaused === true;
   if (controlPaused) {

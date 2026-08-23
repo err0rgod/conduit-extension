@@ -13,5 +13,20 @@ describe('extension manifest permissions', () => {
     expect(manifest.permissions).toEqual(
       expect.arrayContaining(['activeTab', 'nativeMessaging', 'scripting', 'storage', 'tabs']),
     );
+    expect(manifest.optional_permissions).toEqual(['debugger', 'downloads']);
+    expect(manifest.icons).toEqual({
+      '16': 'icons/icon-16.png',
+      '32': 'icons/icon-32.png',
+      '48': 'icons/icon-48.png',
+      '128': 'icons/icon-128.png',
+    });
+    const packageJson = JSON.parse(
+      readFileSync(path.resolve(__dirname, '..', 'package.json'), 'utf8'),
+    ) as { version: string };
+    const repositoryPackage = JSON.parse(
+      readFileSync(path.resolve(__dirname, '..', '..', '..', 'package.json'), 'utf8'),
+    ) as { version: string };
+    expect(manifest.version).toBe(packageJson.version);
+    expect(manifest.version).toBe(repositoryPackage.version);
   });
 });

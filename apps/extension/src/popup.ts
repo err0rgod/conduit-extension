@@ -2,6 +2,8 @@ type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'setup-requ
 
 import { hostPermissionPattern } from '@conduit/browser-core';
 import type { AuditEvent, ConfirmationRequest } from '@conduit/protocol';
+import { OPTIONAL_CAPABILITIES, parseActiveSession } from './capability-state';
+import type { OptionalCapabilityPermission } from './capability-state';
 
 document.addEventListener('DOMContentLoaded', () => {
   const stateElement = document.getElementById('connection-state') as HTMLSpanElement;
@@ -15,6 +17,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const controlState = document.getElementById('control-state') as HTMLSpanElement;
   const controlTarget = document.getElementById('control-target') as HTMLSpanElement;
   const lastAction = document.getElementById('last-action') as HTMLSpanElement;
+  const sessionStarted = document.getElementById('session-started') as HTMLSpanElement;
+  const sessionActivity = document.getElementById('session-activity') as HTMLSpanElement;
   const disconnectButton = document.getElementById('disconnect') as HTMLButtonElement;
   const resumeButton = document.getElementById('resume') as HTMLButtonElement;
   const confirmationCount = document.getElementById('confirmation-count') as HTMLSpanElement;
@@ -29,6 +33,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const auditMessage = document.getElementById('audit-message') as HTMLParagraphElement;
   const auditList = document.getElementById('audit-list') as HTMLDivElement;
   const refreshAudit = document.getElementById('refresh-audit') as HTMLButtonElement;
+  const capabilityMessage = document.getElementById('capability-message') as HTMLParagraphElement;
+  const capabilityList = document.getElementById('capability-list') as HTMLDivElement;
+  const grantedSiteCount = document.getElementById('granted-site-count') as HTMLSpanElement;
+  const revokeAllSitesButton = document.getElementById('revoke-all-sites') as HTMLButtonElement;
   let activePattern: string | undefined;
 
   const render = (values: {
@@ -61,12 +69,24 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   const renderControlState = async () => {
-    const values = await chrome.storage.local.get(['controlPaused', 'lastControlActivity']);
+    const values = await chrome.storage.local.get([
+      'controlPaused',
+      'lastControlActivity',
+      'activeSession',
+    ]);
     const paused = values.controlPaused === true;
     controlState.textContent = paused ? 'paused' : 'ready';
     controlState.dataset.paused = String(paused);
     disconnectButton.hidden = paused;
     resumeButton.hidden = !paused;
+
+    const session = parseActiveSession(values.activeSession);
+    sessionStarted.textContent = session
+      ? new Date(session.authenticatedAt).toLocaleTimeString()
+      : 'No authenticated session';
+    sessionActivity.textContent = session
+      ? new Date(session.lastActivityAt).toLocaleTimeString()
+      : 'None';
 
     const activity = values.lastControlActivity;
     if (!isControlActivity(activity)) {
@@ -107,6 +127,75 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   void renderSiteAccess();
+
+  const renderCapabilities = async () => {
+    const permissions = await chrome.permissions.getAll();
+    const grantedPermissions = new Set(permissions.permissions ?? []);
+    capabilityList.replaceChildren(
+      ...OPTIONAL_CAPABILITIES.map((capability) => {
+        const granted = grantedPermissions.has(capability.permission);
+        const card = document.createElement('article');
+        card.className = 'capability-card';
+        const heading = document.createElement('div');
+        heading.className = 'status-row';
+        const label = document.createElement('strong');
+        label.textContent = capability.label;
+        const state = document.createElement('span');
+        state.className = 'capability-state';
+        state.dataset.granted = String(granted);
+        state.textContent = granted ? 'allowed' : 'not allowed';
+        heading.append(label, state);
+        const description = document.createElement('p');
+        description.className = 'permission-note';
+        description.textContent = capability.description;
+        const action = document.createElement('button');
+        action.type = 'button';
+        action.className = granted ? 'secondary' : '';
+        action.textContent = granted ? 'Revoke' : 'Allow';
+        action.addEventListener('click', () => {
+          void changeCapabilityPermission(capability.permission, !granted, action);
+        });
+        card.append(heading, description, action);
+        return card;
+      }),
+    );
+    const grantedOrigins = (permissions.origins ?? []).filter(
+      (origin) => origin.startsWith('http://') || origin.startsWith('https://'),
+    );
+    grantedSiteCount.textContent = String(grantedOrigins.length);
+    revokeAllSitesButton.disabled = grantedOrigins.length === 0;
+  };
+
+  const changeCapabilityPermission = async (
+    permission: OptionalCapabilityPermission,
+    grant: boolean,
+    button: HTMLButtonElement,
+  ) => {
+    button.disabled = true;
+    capabilityMessage.textContent = grant
+      ? `Waiting for Chromium to approve ${permission} access.`
+      : `Revoking ${permission} access.`;
+    try {
+      const changed = grant
+        ? await chrome.permissions.request({ permissions: [permission] })
+        : await chrome.permissions.remove({ permissions: [permission] });
+      capabilityMessage.textContent = changed
+        ? `${permission} access ${grant ? 'granted' : 'revoked'}.`
+        : `${permission} access was not changed.`;
+    } catch (error) {
+      capabilityMessage.textContent =
+        error instanceof Error ? error.message : `Could not update ${permission} access.`;
+    } finally {
+      await renderCapabilities();
+    }
+  };
+
+  chrome.permissions.onAdded.addListener(() => void renderCapabilities());
+  chrome.permissions.onRemoved.addListener(() => {
+    void renderCapabilities();
+    void renderSiteAccess();
+  });
+  void renderCapabilities();
 
   const renderConfirmations = async () => {
     confirmationCount.textContent = 'checking';
@@ -239,16 +328,43 @@ document.addEventListener('DOMContentLoaded', () => {
   allowSiteButton.addEventListener('click', async () => {
     if (!activePattern) return;
     allowSiteButton.disabled = true;
-    await chrome.permissions.request({ origins: [activePattern] });
-    await renderSiteAccess();
+    try {
+      const granted = await chrome.permissions.request({ origins: [activePattern] });
+      siteAccess.textContent = granted ? 'allowed' : 'not allowed';
+    } catch (error) {
+      siteAccess.textContent = error instanceof Error ? 'request failed' : 'not allowed';
+    } finally {
+      await renderSiteAccess();
+    }
   });
 
   revokeSiteButton.addEventListener('click', async () => {
     if (!activePattern) return;
     revokeSiteButton.disabled = true;
-    await chrome.permissions.remove({ origins: [activePattern] });
-    revokeSiteButton.disabled = false;
-    await renderSiteAccess();
+    try {
+      await chrome.permissions.remove({ origins: [activePattern] });
+    } finally {
+      revokeSiteButton.disabled = false;
+      await renderSiteAccess();
+    }
+  });
+
+  revokeAllSitesButton.addEventListener('click', async () => {
+    revokeAllSitesButton.disabled = true;
+    try {
+      const permissions = await chrome.permissions.getAll();
+      const origins = (permissions.origins ?? []).filter(
+        (origin) => origin.startsWith('http://') || origin.startsWith('https://'),
+      );
+      if (origins.length > 0) await chrome.permissions.remove({ origins });
+      capabilityMessage.textContent = 'All optional site access was revoked.';
+    } catch (error) {
+      capabilityMessage.textContent =
+        error instanceof Error ? error.message : 'Could not revoke all site access.';
+    } finally {
+      await renderCapabilities();
+      await renderSiteAccess();
+    }
   });
 
   disconnectButton.addEventListener('click', () => {

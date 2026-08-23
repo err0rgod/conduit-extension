@@ -41,6 +41,12 @@ importers:
       esbuild:
         specifier: 0.21.5
         version: 0.21.5
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.3
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
 
   packages/browser-core:
     dependencies:
@@ -928,6 +934,12 @@ packages:
         integrity: sha512-GGToxJ/w1x32s/D2EKND7kTil4n8OVk/9mycTc4VDza13lOvpUZTGX3mFSCtV9ksdGBVzvsyAVLM6mHFThxXxw==,
       }
 
+  fflate@0.8.3:
+    resolution:
+      {
+        integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==,
+      }
+
   file-entry-cache@6.0.1:
     resolution:
       {
@@ -1324,6 +1336,13 @@ packages:
       {
         integrity: sha512-/Jm5M4RvtBFVkKWRu2BLUTNP8/M2a+UwuAX+ae4770q1qVGtfjG+WTCupoZixokjmHiry8uI+dlY8KXYV5HVVQ==,
       }
+
+  pngjs@7.0.0:
+    resolution:
+      {
+        integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==,
+      }
+    engines: { node: '>=14.19.0' }
 
   postcss@8.5.25:
     resolution:
@@ -2147,6 +2166,8 @@ snapshots:
     dependencies:
       reusify: 1.1.0
 
+  fflate@0.8.3: {}
+
   file-entry-cache@6.0.1:
     dependencies:
       flat-cache: 3.2.0
@@ -2343,6 +2364,8 @@ snapshots:
       confbox: 0.1.8
       mlly: 1.8.2
       pathe: 2.0.3
+
+  pngjs@7.0.0: {}
 
   postcss@8.5.25:
     dependencies:

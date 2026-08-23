@@ -11,7 +11,10 @@ the main Conduit repository.
 
 Pre-1.0 migration repository. The extension builds and its browser engine and
 protocol tests run independently. It has a deterministic unpacked ID and discovers
-local connection settings through Chromium Native Messaging.
+local connection settings through Chromium Native Messaging. It is supported as a
+checksummed unpacked extension; browser-store publication remains gated on preserving
+the pinned extension identity and completing the private-store verification in
+[STORE_SUBMISSION.md](STORE_SUBMISSION.md).
 
 ## Development
 
@@ -23,6 +26,8 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm build
+pnpm extension:release
+pnpm --filter @conduit/extension release:check
 ```
 
 Load `apps/extension/dist` from `chrome://extensions` or `edge://extensions` with
@@ -46,6 +51,14 @@ untrusted text; only the popup can send an approve-once or deny decision.
 The popup also requests at most 20 recent structured audit events. It shows only
 event type, outcome, operation/domain scope, and time; sensitive values are
 redacted by the daemon and arbitrary event details remain hidden from this view.
+
+Optional Chromium capabilities remain disabled by default. The popup lets the user
+grant or revoke advanced interaction (`debugger`) and recent download visibility
+(`downloads`), revoke every granted site, and inspect the current authenticated daemon
+session start and last-activity time.
+
+`pnpm extension:release` creates a versioned ZIP and SHA-256 file under `artifacts/`.
+Tagged releases publish those exact files after the complete validation suite passes.
 
 ## Security
 
