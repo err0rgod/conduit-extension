@@ -1,11 +1,13 @@
 {
   "name": "@conduit/extension",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "main": "dist/background.js",
   "scripts": {
     "build": "node build.js",
+    "icons:generate": "node generate-icons.js",
     "typecheck": "tsc --noEmit",
-    "package": "node build.js && node package.js"
+    "package": "node generate-icons.js && node build.js && node package.js",
+    "release:check": "node release-check.js"
   },
   "dependencies": {
     "@conduit/browser-core": "workspace:*",
@@ -13,6 +15,8 @@
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268",
-    "esbuild": "0.21.5"
+    "esbuild": "0.21.5",
+    "fflate": "^0.8.2",
+    "pngjs": "^7.0.0"
   }
 }

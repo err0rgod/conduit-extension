@@ -2,5 +2,6 @@ node_modules/
 **/dist/
 *.tsbuildinfo
 *.zip
+artifacts/
 .DS_Store
 Thumbs.db
