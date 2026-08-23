@@ -351,6 +351,8 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
   }
 }
 
+export const ALL_HTTPS_HOST_PATTERNS = ['http://*/*', 'https://*/*'] as const;
+
 export function hostPermissionPattern(value: string): string | undefined {
   try {
     const url = new URL(value);

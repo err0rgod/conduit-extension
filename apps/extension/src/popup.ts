@@ -4,6 +4,7 @@ import { hostPermissionPattern } from '@conduit/browser-core';
 import type { AuditEvent, ConfirmationRequest } from '@conduit/protocol';
 import { OPTIONAL_CAPABILITIES, parseActiveSession } from './capability-state';
 import type { OptionalCapabilityPermission } from './capability-state';
+import { hasAllSiteAccess, requestAllSiteAccess, revokeAllSiteAccess } from './site-permissions';
 
 document.addEventListener('DOMContentLoaded', () => {
   const stateElement = document.getElementById('connection-state') as HTMLSpanElement;
@@ -37,6 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const capabilityList = document.getElementById('capability-list') as HTMLDivElement;
   const grantedSiteCount = document.getElementById('granted-site-count') as HTMLSpanElement;
   const revokeAllSitesButton = document.getElementById('revoke-all-sites') as HTMLButtonElement;
+  const allowAllSitesButton = document.getElementById('allow-all-sites') as HTMLButtonElement;
   let activePattern: string | undefined;
 
   const render = (values: {
@@ -102,6 +104,12 @@ document.addEventListener('DOMContentLoaded', () => {
   void renderControlState();
 
   const renderSiteAccess = async () => {
+    const allSitesGranted = await hasAllSiteAccess(chrome.permissions);
+    allowAllSitesButton.hidden = allSitesGranted;
+    allowAllSitesButton.disabled = allSitesGranted;
+    revokeAllSitesButton.hidden = !allSitesGranted;
+    revokeAllSitesButton.disabled = !allSitesGranted;
+
     const tabs = await chrome.tabs.query({ currentWindow: true });
     const tab =
       tabs.find((candidate) => candidate.active && hostPermissionPattern(candidate.url ?? '')) ??
@@ -163,7 +171,6 @@ document.addEventListener('DOMContentLoaded', () => {
       (origin) => origin.startsWith('http://') || origin.startsWith('https://'),
     );
     grantedSiteCount.textContent = String(grantedOrigins.length);
-    revokeAllSitesButton.disabled = grantedOrigins.length === 0;
   };
 
   const changeCapabilityPermission = async (
@@ -190,7 +197,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  chrome.permissions.onAdded.addListener(() => void renderCapabilities());
+  chrome.permissions.onAdded.addListener(() => {
+    void renderCapabilities();
+    void renderSiteAccess();
+  });
   chrome.permissions.onRemoved.addListener(() => {
     void renderCapabilities();
     void renderSiteAccess();
@@ -349,15 +359,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  allowAllSitesButton.addEventListener('click', async () => {
+    allowAllSitesButton.disabled = true;
+    try {
+      const granted = await requestAllSiteAccess(chrome.permissions);
+      capabilityMessage.textContent = granted
+        ? 'Optional HTTP/HTTPS access was granted for all sites.'
+        : 'Broad site access was not granted.';
+    } catch (error) {
+      capabilityMessage.textContent =
+        error instanceof Error ? error.message : 'Could not grant broad site access.';
+    } finally {
+      await renderCapabilities();
+      await renderSiteAccess();
+    }
+  });
+
   revokeAllSitesButton.addEventListener('click', async () => {
     revokeAllSitesButton.disabled = true;
     try {
-      const permissions = await chrome.permissions.getAll();
-      const origins = (permissions.origins ?? []).filter(
-        (origin) => origin.startsWith('http://') || origin.startsWith('https://'),
-      );
-      if (origins.length > 0) await chrome.permissions.remove({ origins });
-      capabilityMessage.textContent = 'All optional site access was revoked.';
+      const revoked = await revokeAllSiteAccess(chrome.permissions);
+      capabilityMessage.textContent = revoked
+        ? 'All site access was revoked.'
+        : 'All site access was already revoked.';
     } catch (error) {
       capabilityMessage.textContent =
         error instanceof Error ? error.message : 'Could not revoke all site access.';
