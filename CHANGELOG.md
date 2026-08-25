@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.4] - Unreleased
+
+The next extension release line is `1.1.4`.
+
 ## [0.1.3] - 2026-08-23
 
 ### Added

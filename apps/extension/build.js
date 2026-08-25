@@ -46,9 +46,12 @@ async function buildScripts(outdir, target, format, firefox) {
 
 function copyStaticFiles(directory) {
   fs.copyFileSync(path.join(root, 'popup.html'), path.join(directory, 'popup.html'));
-  fs.cpSync(path.join(root, 'assets', 'icons'), path.join(directory, 'icons'), {
-    recursive: true,
-  });
+  const iconsDirectory = path.join(root, 'assets', 'icons');
+  const outputIconsDirectory = path.join(directory, 'icons');
+  fs.mkdirSync(outputIconsDirectory, { recursive: true });
+  for (const icon of ['icon-16.png', 'icon-32.png', 'icon-48.png', 'icon-128.png']) {
+    fs.copyFileSync(path.join(iconsDirectory, icon), path.join(outputIconsDirectory, icon));
+  }
 }
 
 function writeManifest(directory, manifest) {
