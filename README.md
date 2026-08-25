@@ -10,7 +10,7 @@ the main Conduit repository.
 ## Status
 
 Pre-1.0 migration repository. The extension builds and its browser engine and
-protocol tests run independently. The unpacked build has a deterministic Chromium ID,
+protocol tests run independently. The unpacked build has a deterministic Chromium ID, and the published Chrome Web Store build has ID `gjhipjgiapijcdnflldnoenafeegmfpc`,
 while browser-store builds omit the manifest `key` and use identities assigned by each
 store. Conduit trusts only explicitly configured store identities through Native
 Messaging. See [STORE_SUBMISSION.md](STORE_SUBMISSION.md).

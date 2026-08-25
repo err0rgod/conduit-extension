@@ -17,6 +17,9 @@ must not contain `manifest.key`. Record each assigned ID and run
 Messaging to accept arbitrary extension origins. Store ownership, signing keys, and account
 recovery must be controlled by the project owner.
 
+The published Chrome Web Store listing is:
+https://chromewebstore.google.com/detail/conduit-extension/gjhipjgiapijcdnflldnoenafeegmfpc
+
 ## Permission justifications
 
 - `nativeMessaging`: discovers the authenticated loopback daemon after explicit `conduit setup`.
