@@ -10,10 +10,14 @@ the main Conduit repository.
 ## Status
 
 Pre-1.0 migration repository. The extension builds and its browser engine and
-protocol tests run independently. The unpacked build has a deterministic Chromium ID, and the published Chrome Web Store build has ID `gjhipjgiapijcdnflldnoenafeegmfpc`,
-while browser-store builds omit the manifest `key` and use identities assigned by each
-store. Conduit trusts only explicitly configured store identities through Native
-Messaging. See [STORE_SUBMISSION.md](STORE_SUBMISSION.md).
+protocol tests run independently. The Chrome Web Store listing is temporarily
+unavailable. Until it returns, download the verified unpacked archive from the
+[v0.1.3 GitHub release](https://github.com/err0rgod/conduit-extension/releases/tag/v0.1.3),
+extract it, open `chrome://extensions`, enable Developer mode, choose Load unpacked,
+and select the folder containing `manifest.json`. This archive has deterministic
+Chromium ID `jkdlmcpkgkooilffjegfjmkanoelbmbl`, which Conduit trusts by default.
+Browser-store builds omit the manifest `key` and use identities assigned by each
+store. See [STORE_SUBMISSION.md](STORE_SUBMISSION.md).
 
 ## Development
 

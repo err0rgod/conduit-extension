@@ -17,7 +17,8 @@ must not contain `manifest.key`. Record each assigned ID and run
 Messaging to accept arbitrary extension origins. Store ownership, signing keys, and account
 recovery must be controlled by the project owner.
 
-The published Chrome Web Store listing is:
+The Chrome Web Store listing was previously published at the following URL and is
+currently temporarily unavailable:
 https://chromewebstore.google.com/detail/conduit-extension/gjhipjgiapijcdnflldnoenafeegmfpc
 
 ## Permission justifications
