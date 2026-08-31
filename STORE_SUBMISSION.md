@@ -21,6 +21,9 @@ The Chrome Web Store listing was previously published at the following URL and i
 currently temporarily unavailable:
 https://chromewebstore.google.com/detail/conduit-extension/gjhipjgiapijcdnflldnoenafeegmfpc
 
+The Firefox Add-ons listing is approved and available at:
+https://addons.mozilla.org/en-US/firefox/addon/conduit/
+
 ## Permission justifications
 
 - `nativeMessaging`: discovers the authenticated loopback daemon after explicit `conduit setup`.

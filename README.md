@@ -19,6 +19,9 @@ Chromium ID `jkdlmcpkgkooilffjegfjmkanoelbmbl`, which Conduit trusts by default.
 Browser-store builds omit the manifest `key` and use identities assigned by each
 store. See [STORE_SUBMISSION.md](STORE_SUBMISSION.md).
 
+Firefox users can install the approved add-on directly from
+[Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/conduit/).
+
 ## Development
 
 ```bash
