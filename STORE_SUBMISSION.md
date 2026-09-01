@@ -17,12 +17,17 @@ must not contain `manifest.key`. Record each assigned ID and run
 Messaging to accept arbitrary extension origins. Store ownership, signing keys, and account
 recovery must be controlled by the project owner.
 
-The Chrome Web Store listing was previously published at the following URL and is
-currently temporarily unavailable:
+The Chrome Web Store listing is live at:
 https://chromewebstore.google.com/detail/conduit-extension/gjhipjgiapijcdnflldnoenafeegmfpc
 
 The Firefox Add-ons listing is approved and available at:
 https://addons.mozilla.org/en-US/firefox/addon/conduit/
+
+The Firefox add-on ID is `conduit@err0rgod.github.io`. It is the fixed Gecko ID
+declared in the signed package's `browser_specific_settings.gecko.id` field, not
+the `conduit` slug in the listing URL. To verify it in Firefox, open
+`about:debugging#/runtime/this-firefox`, select the installed add-on, and read
+the Internal UUID/ID shown there. The same ID is trusted by the backend defaults.
 
 ## Permission justifications
 

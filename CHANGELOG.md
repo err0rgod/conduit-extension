@@ -6,7 +6,7 @@ The next extension release line is `1.1.4`.
 
 ### Distribution
 
-- The Chrome Web Store listing is temporarily unavailable. Use the verified unpacked GitHub archive with Chrome Developer mode until the listing returns.
+- During the temporary Chrome Web Store review period, use the verified unpacked GitHub archive with Chrome Developer mode. The listing is live again.
 
 ## [0.1.3] - 2026-08-23
 

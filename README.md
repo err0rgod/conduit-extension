@@ -10,8 +10,9 @@ the main Conduit repository.
 ## Status
 
 Pre-1.0 migration repository. The extension builds and its browser engine and
-protocol tests run independently. The Chrome Web Store listing is temporarily
-unavailable. Until it returns, download the verified unpacked archive from the
+protocol tests run independently. Chrome users can install the live [Chrome Web
+Store listing](https://chromewebstore.google.com/detail/conduit-extension/gjhipjgiapijcdnflldnoenafeegmfpc).
+For development or recovery, download the verified unpacked archive from the
 [v0.1.3 GitHub release](https://github.com/err0rgod/conduit-extension/releases/tag/v0.1.3),
 extract it, open `chrome://extensions`, enable Developer mode, choose Load unpacked,
 and select the folder containing `manifest.json`. This archive has deterministic
