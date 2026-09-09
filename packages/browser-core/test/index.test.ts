@@ -68,4 +68,17 @@ describe('browser host permission enforcement', () => {
     expect(contains).toHaveBeenCalledWith({ origins: ['https://example.com/*'] });
     expect(executeScript).toHaveBeenCalledOnce();
   });
+
+  it('keeps debugger diagnostics opt-in', async () => {
+    const attach = vi.fn();
+    vi.stubGlobal('chrome', {
+      tabs: { get: vi.fn().mockResolvedValue({ id: 7, url: 'https://example.com/' }) },
+      permissions: { contains: vi.fn().mockResolvedValue(false) },
+      debugger: { attach, onEvent: { addListener: vi.fn() } },
+    });
+    await expect(new ExtensionBrowserEngine().startDebug({ tabId: 7 })).rejects.toMatchObject({
+      code: 'PERMISSION_DENIED',
+    });
+    expect(attach).not.toHaveBeenCalled();
+  });
 });

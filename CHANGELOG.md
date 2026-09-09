@@ -4,6 +4,12 @@
 
 The next extension release line is `1.1.4`.
 
+### Debugging foundation
+
+- Chromium builds now support opt-in, bounded debugger sessions for redacted console, exception, network, pause/resume, runtime evaluation, and performance trace operations.
+- Debugger sessions require the existing optional debugger permission and never expose unrestricted DevTools Protocol commands.
+- Firefox keeps its explicit unsupported-capability behavior for Chromium-only debugger features.
+
 ### Distribution
 
 - During the temporary Chrome Web Store review period, use the verified unpacked GitHub archive with Chrome Developer mode. The listing is live again.

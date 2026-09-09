@@ -366,6 +366,50 @@ async function executeBrowserRequest(request: BrowserRequestEnvelope): Promise<v
         sendToDaemon(createSuccessResponse({ downloads }, request.id));
         return;
       }
+      case 'browser.debug_start': {
+        const status = await browserEngine.startDebug(request.payload, request.payload);
+        sendToDaemon(createSuccessResponse({ debug: status }, request.id));
+        return;
+      }
+      case 'browser.debug_stop': {
+        await browserEngine.stopDebug(request.payload);
+        sendToDaemon(createSuccessResponse({ stopped: true }, request.id));
+        return;
+      }
+      case 'browser.debug_events': {
+        const events = await browserEngine.getDebugEvents(request.payload, request.payload);
+        sendToDaemon(createSuccessResponse({ events }, request.id));
+        return;
+      }
+      case 'browser.debug_evaluate': {
+        const value = await browserEngine.evaluateDebug(
+          request.payload,
+          request.payload.expression,
+          request.payload.awaitPromise,
+        );
+        sendToDaemon(createSuccessResponse({ value }, request.id));
+        return;
+      }
+      case 'browser.debug_pause': {
+        await browserEngine.pauseDebug(request.payload);
+        sendToDaemon(createSuccessResponse({ paused: true }, request.id));
+        return;
+      }
+      case 'browser.debug_resume': {
+        await browserEngine.resumeDebug(request.payload);
+        sendToDaemon(createSuccessResponse({ resumed: true }, request.id));
+        return;
+      }
+      case 'browser.debug_trace_start': {
+        await browserEngine.startTrace(request.payload, request.payload.categories);
+        sendToDaemon(createSuccessResponse({ tracing: true }, request.id));
+        return;
+      }
+      case 'browser.debug_trace_stop': {
+        const trace = await browserEngine.stopTrace(request.payload);
+        sendToDaemon(createSuccessResponse({ trace }, request.id));
+        return;
+      }
     }
   } catch (error) {
     setDiagnostic(

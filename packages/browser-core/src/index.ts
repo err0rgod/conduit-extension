@@ -52,6 +52,47 @@ export interface BrowserActionEngine {
   screenshot(target: BrowserTarget, format?: 'png' | 'jpeg'): Promise<ScreenshotResult>;
   uploadFile(target: BrowserTarget, action: UploadFileAction): Promise<void>;
   getDownloads(): Promise<Array<{ id: number; filename: string; url: string; state: string }>>;
+  startDebug(target: BrowserTarget, options?: DebugStartOptions): Promise<DebugSessionStatus>;
+  stopDebug(target: BrowserTarget): Promise<void>;
+  getDebugEvents(target: BrowserTarget, options?: DebugEventsOptions): Promise<DebugEvent[]>;
+  evaluateDebug(
+    target: BrowserTarget,
+    expression: string,
+    awaitPromise?: boolean,
+  ): Promise<unknown>;
+  pauseDebug(target: BrowserTarget): Promise<void>;
+  resumeDebug(target: BrowserTarget): Promise<void>;
+  startTrace(target: BrowserTarget, categories?: string[]): Promise<void>;
+  stopTrace(target: BrowserTarget): Promise<{ data: string; truncated: boolean }>;
+}
+
+export interface DebugStartOptions {
+  includeNetwork?: boolean;
+  includeConsole?: boolean;
+  maxEvents?: number;
+}
+
+export interface DebugEventsOptions {
+  since?: number;
+  limit?: number;
+}
+
+export interface DebugEvent {
+  sequence: number;
+  timestamp: number;
+  tabId: number;
+  type: 'console' | 'exception' | 'network' | 'log' | 'paused' | 'resumed' | 'trace';
+  method: string;
+  data: Record<string, unknown>;
+}
+
+export interface DebugSessionStatus {
+  tabId: number;
+  startedAt: number;
+  includeNetwork: boolean;
+  includeConsole: boolean;
+  eventCount: number;
+  paused: boolean;
 }
 
 interface InPageActionResult {
@@ -82,6 +123,70 @@ const MAX_SNAPSHOT_ELEMENTS = 200;
 const MAX_VISIBLE_TEXT_LENGTH = 20_000;
 
 export class ExtensionBrowserEngine implements BrowserActionEngine {
+  private readonly debugSessions = new Map<
+    number,
+    {
+      startedAt: number;
+      includeNetwork: boolean;
+      includeConsole: boolean;
+      maxEvents: number;
+      events: DebugEvent[];
+      nextSequence: number;
+      paused: boolean;
+      traceChunks: string[];
+      traceTruncated: boolean;
+      traceWaiters: Array<(value: { data: string; truncated: boolean }) => void>;
+    }
+  >();
+
+  private readonly debugEventListener = (
+    source: chrome.debugger.Debuggee,
+    method: string,
+    params?: object,
+  ): void => {
+    if (source.tabId === undefined) return;
+    const session = this.debugSessions.get(source.tabId);
+    if (!session) return;
+    if (method === 'Runtime.consoleAPICalled' && !session.includeConsole) return;
+    if (method.startsWith('Network.') && !session.includeNetwork) return;
+    if (method === 'Tracing.dataCollected') {
+      const value = JSON.stringify(params ?? {});
+      if (session.traceChunks.join('').length + value.length <= 2_000_000) {
+        session.traceChunks.push(value);
+      } else {
+        session.traceTruncated = true;
+      }
+      return;
+    }
+    if (method === 'Tracing.tracingComplete') {
+      const result = {
+        data: session.traceChunks.join('\n'),
+        truncated: session.traceTruncated,
+      };
+      for (const waiter of session.traceWaiters.splice(0)) waiter(result);
+      return;
+    }
+    if (!isDiagnosticEventMethod(method)) return;
+    const event: DebugEvent = {
+      sequence: session.nextSequence++,
+      timestamp: Date.now(),
+      tabId: source.tabId,
+      type: debugEventType(method),
+      method,
+      data: sanitizeDebugData(params),
+    };
+    session.events.push(event);
+    while (session.events.length > session.maxEvents) session.events.shift();
+    if (method === 'Debugger.paused') session.paused = true;
+    if (method === 'Debugger.resumed') session.paused = false;
+  };
+
+  public constructor() {
+    const api = (globalThis.chrome as unknown as { debugger?: typeof chrome.debugger } | undefined)
+      ?.debugger;
+    api?.onEvent?.addListener(this.debugEventListener);
+  }
+
   public async listTabs(): Promise<BrowserTab[]> {
     const tabs = await chrome.tabs.query({});
     return tabs.map(toBrowserTab);
@@ -322,6 +427,193 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     }));
   }
 
+  public async startDebug(
+    target: BrowserTarget,
+    options: DebugStartOptions = {},
+  ): Promise<DebugSessionStatus> {
+    requireChromiumAdvancedInteraction();
+    await requireOptionalPermission('debugger');
+    const tabId = await this.resolveTabId(target);
+    const existing = this.debugSessions.get(tabId);
+    if (existing) return this.debugStatus(tabId, existing);
+    const session = {
+      startedAt: Date.now(),
+      includeNetwork: options.includeNetwork ?? true,
+      includeConsole: options.includeConsole ?? true,
+      maxEvents: Math.max(1, Math.min(options.maxEvents ?? 500, 2_000)),
+      events: [] as DebugEvent[],
+      nextSequence: 1,
+      paused: false,
+      traceChunks: [] as string[],
+      traceTruncated: false,
+      traceWaiters: [] as Array<(value: { data: string; truncated: boolean }) => void>,
+    };
+    const api = debuggerApi();
+    const debuggee = { tabId };
+    await api.attach(debuggee, '1.3');
+    try {
+      await api.sendCommand(debuggee, 'Runtime.enable');
+      await api.sendCommand(debuggee, 'Debugger.enable');
+      await api.sendCommand(debuggee, 'Log.enable');
+      if (session.includeNetwork) await api.sendCommand(debuggee, 'Network.enable');
+      this.debugSessions.set(tabId, session);
+      return this.debugStatus(tabId, session);
+    } catch (error) {
+      await api.detach(debuggee).catch(() => undefined);
+      throw error;
+    }
+  }
+
+  public async stopDebug(target: BrowserTarget): Promise<void> {
+    requireChromiumAdvancedInteraction();
+    await requireOptionalPermission('debugger');
+    const tabId = await this.resolveTabId(target);
+    const session = this.debugSessions.get(tabId);
+    if (!session) return;
+    this.debugSessions.delete(tabId);
+    await debuggerApi()
+      .detach({ tabId })
+      .catch(() => undefined);
+  }
+
+  public async getDebugEvents(
+    target: BrowserTarget,
+    options: DebugEventsOptions = {},
+  ): Promise<DebugEvent[]> {
+    requireChromiumAdvancedInteraction();
+    await requireOptionalPermission('debugger');
+    const tabId = await this.resolveTabId(target);
+    const session = this.debugSessions.get(tabId);
+    if (!session)
+      throw new BrowserActionError(
+        'DEBUG_SESSION_NOT_FOUND',
+        'Debug capture is not active for this tab.',
+      );
+    const since = options.since ?? 0;
+    const limit = Math.max(1, Math.min(options.limit ?? 100, 500));
+    return session.events.filter((event) => event.sequence > since).slice(-limit);
+  }
+
+  public async evaluateDebug(
+    target: BrowserTarget,
+    expression: string,
+    awaitPromise = true,
+  ): Promise<unknown> {
+    requireChromiumAdvancedInteraction();
+    await requireOptionalPermission('debugger');
+    const tabId = await this.resolveTabId(target);
+    if (!this.debugSessions.has(tabId))
+      throw new BrowserActionError(
+        'DEBUG_SESSION_NOT_FOUND',
+        'Start debug capture before evaluating code.',
+      );
+    const result = await debuggerApi().sendCommand({ tabId }, 'Runtime.evaluate', {
+      expression,
+      awaitPromise,
+      returnByValue: true,
+      userGesture: false,
+    });
+    const value = result as {
+      exceptionDetails?: unknown;
+      result?: { value?: unknown; description?: string };
+    };
+    if (value.exceptionDetails)
+      throw new BrowserActionError('INTERNAL_ERROR', 'Page evaluation failed.');
+    return value.result?.value;
+  }
+
+  public async pauseDebug(target: BrowserTarget): Promise<void> {
+    requireChromiumAdvancedInteraction();
+    await requireOptionalPermission('debugger');
+    const tabId = await this.resolveTabId(target);
+    if (!this.debugSessions.has(tabId))
+      throw new BrowserActionError(
+        'DEBUG_SESSION_NOT_FOUND',
+        'Debug capture is not active for this tab.',
+      );
+    await debuggerApi().sendCommand({ tabId }, 'Debugger.pause');
+  }
+
+  public async resumeDebug(target: BrowserTarget): Promise<void> {
+    requireChromiumAdvancedInteraction();
+    await requireOptionalPermission('debugger');
+    const tabId = await this.resolveTabId(target);
+    if (!this.debugSessions.has(tabId))
+      throw new BrowserActionError(
+        'DEBUG_SESSION_NOT_FOUND',
+        'Debug capture is not active for this tab.',
+      );
+    await debuggerApi().sendCommand({ tabId }, 'Debugger.resume');
+  }
+
+  public async startTrace(target: BrowserTarget, categories: string[] = []): Promise<void> {
+    requireChromiumAdvancedInteraction();
+    await requireOptionalPermission('debugger');
+    const tabId = await this.resolveTabId(target);
+    const session = this.debugSessions.get(tabId);
+    if (!session)
+      throw new BrowserActionError(
+        'DEBUG_SESSION_NOT_FOUND',
+        'Start debug capture before tracing.',
+      );
+    session.traceChunks = [];
+    session.traceTruncated = false;
+    await debuggerApi().sendCommand({ tabId }, 'Tracing.start', {
+      categories: categories.length
+        ? categories.join(',')
+        : 'devtools.timeline,disabled-by-default-devtools.timeline',
+      transferMode: 'ReportEvents',
+    });
+  }
+
+  public async stopTrace(target: BrowserTarget): Promise<{ data: string; truncated: boolean }> {
+    requireChromiumAdvancedInteraction();
+    await requireOptionalPermission('debugger');
+    const tabId = await this.resolveTabId(target);
+    const session = this.debugSessions.get(tabId);
+    if (!session)
+      throw new BrowserActionError(
+        'DEBUG_SESSION_NOT_FOUND',
+        'Start debug capture before tracing.',
+      );
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        const result = { data: session.traceChunks.join('\n'), truncated: session.traceTruncated };
+        resolve(result);
+      }, 5_000);
+      session.traceWaiters.push((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      });
+      void debuggerApi()
+        .sendCommand({ tabId }, 'Tracing.end')
+        .catch(() => {
+          clearTimeout(timer);
+          resolve({ data: session.traceChunks.join('\n'), truncated: session.traceTruncated });
+        });
+    });
+  }
+
+  private debugStatus(
+    tabId: number,
+    session: {
+      startedAt: number;
+      includeNetwork: boolean;
+      includeConsole: boolean;
+      events: DebugEvent[];
+      paused: boolean;
+    },
+  ): DebugSessionStatus {
+    return {
+      tabId,
+      startedAt: session.startedAt,
+      includeNetwork: session.includeNetwork,
+      includeConsole: session.includeConsole,
+      eventCount: session.events.length,
+      paused: session.paused,
+    };
+  }
+
   private async resolveTabId(target: BrowserTarget): Promise<number> {
     if (target.tabId !== undefined) {
       return target.tabId;
@@ -435,6 +727,52 @@ function debuggerApi(): typeof chrome.debugger {
     );
   }
   return api as typeof chrome.debugger;
+}
+
+function debugEventType(method: string): DebugEvent['type'] {
+  if (method === 'Runtime.consoleAPICalled') return 'console';
+  if (method === 'Runtime.exceptionThrown') return 'exception';
+  if (method.startsWith('Network.')) return 'network';
+  if (method === 'Log.entryAdded') return 'log';
+  if (method === 'Debugger.paused') return 'paused';
+  if (method === 'Debugger.resumed') return 'resumed';
+  return 'trace';
+}
+
+function isDiagnosticEventMethod(method: string): boolean {
+  return [
+    'Runtime.consoleAPICalled',
+    'Runtime.exceptionThrown',
+    'Log.entryAdded',
+    'Debugger.paused',
+    'Debugger.resumed',
+    'Network.requestWillBeSent',
+    'Network.responseReceived',
+    'Network.loadingFailed',
+    'Network.loadingFinished',
+  ].includes(method);
+}
+
+function sanitizeDebugData(value: object | undefined): Record<string, unknown> {
+  if (!value || typeof value !== 'object') return {};
+  const result: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (/body|cookie|authorization|token|password|secret|set-cookie/iu.test(key)) continue;
+    if (typeof entry === 'string')
+      result[key] = entry.length > 2_000 ? `${entry.slice(0, 2_000)}…` : entry;
+    else if (typeof entry === 'number' || typeof entry === 'boolean' || entry === null)
+      result[key] = entry;
+    else if (Array.isArray(entry))
+      result[key] = entry.slice(0, 50).map((item) => sanitizeDebugValue(item));
+    else if (typeof entry === 'object') result[key] = sanitizeDebugData(entry as object);
+  }
+  return result;
+}
+
+function sanitizeDebugValue(value: unknown): unknown {
+  if (typeof value === 'string') return value.length > 500 ? `${value.slice(0, 500)}…` : value;
+  if (typeof value === 'object' && value !== null) return sanitizeDebugData(value as object);
+  return value;
 }
 
 function isPoint(value: unknown): value is { x: number; y: number } {
