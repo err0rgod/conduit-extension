@@ -322,6 +322,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     const bounds = await this.runInTab(tabId, executePageActionInPage, [
       { operation: 'bounds', target: action.target },
     ]);
@@ -342,6 +343,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     const modifiers = action.modifiers.reduce(
       (mask, modifier) => mask | ({ Alt: 1, Control: 2, Meta: 4, Shift: 8 }[modifier] ?? 0),
       0,
@@ -367,6 +369,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
   ): Promise<ScreenshotResult> {
     const tabId = await this.resolveTabId(target);
     await requireHostAccess(tabId);
+    await requireHostAccess(tabId);
     const tab = await chrome.tabs.update(tabId, { active: true });
     const windowId = tab.windowId;
 
@@ -385,6 +388,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     const selector = await this.runInTab(tabId, executePageActionInPage, [
       { operation: 'selector', target: action.target },
     ]);
@@ -434,6 +438,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     const existing = this.debugSessions.get(tabId);
     if (existing) return this.debugStatus(tabId, existing);
     const session = {
@@ -483,6 +488,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     const session = this.debugSessions.get(tabId);
     if (!session)
       throw new BrowserActionError(
@@ -502,6 +508,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     if (!this.debugSessions.has(tabId))
       throw new BrowserActionError(
         'DEBUG_SESSION_NOT_FOUND',
@@ -526,6 +533,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     if (!this.debugSessions.has(tabId))
       throw new BrowserActionError(
         'DEBUG_SESSION_NOT_FOUND',
@@ -538,6 +546,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     if (!this.debugSessions.has(tabId))
       throw new BrowserActionError(
         'DEBUG_SESSION_NOT_FOUND',
@@ -550,6 +559,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     const session = this.debugSessions.get(tabId);
     if (!session)
       throw new BrowserActionError(
@@ -570,6 +580,7 @@ export class ExtensionBrowserEngine implements BrowserActionEngine {
     requireChromiumAdvancedInteraction();
     await requireOptionalPermission('debugger');
     const tabId = await this.resolveTabId(target);
+    await requireHostAccess(tabId);
     const session = this.debugSessions.get(tabId);
     if (!session)
       throw new BrowserActionError(
