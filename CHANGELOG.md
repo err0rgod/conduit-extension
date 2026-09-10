@@ -1,8 +1,8 @@
 # Changelog
 
-## [1.1.4] - Unreleased
+## [1.1.4] - 2026-09-10
 
-The next extension release line is `1.1.4`.
+This release adds the controlled browser-debugging foundation and retains the reviewed multi-browser packaging model.
 
 ### Debugging foundation
 
