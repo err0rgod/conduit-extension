@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.1.5] - 2026-09-12
+
+This release fixes Chromium advanced interaction permission handling and prepares a new
+Chrome Web Store upload. The Chromium archive is the store-safe build with no manifest
+`key`; Firefox remains a separate build.
+
+### Fixed
+
+- Chromium declares `debugger` as an install-time required permission because Chrome does
+  not allow it to be requested through the runtime permissions API.
+- The popup reports the install-managed debugger state instead of showing a nonfunctional
+  runtime grant button.
+- Firefox uses its promise-based Native Messaging API while preserving its unsupported
+  behavior for Chromium-only debugger features.
+
 ## [1.1.4] - 2026-09-10
 
 This release adds the controlled browser-debugging foundation and retains the reviewed multi-browser packaging model.
@@ -7,7 +22,7 @@ This release adds the controlled browser-debugging foundation and retains the re
 ### Debugging foundation
 
 - Chromium builds now support opt-in, bounded debugger sessions for redacted console, exception, network, pause/resume, runtime evaluation, and performance trace operations.
-- Debugger sessions require the existing optional debugger permission and never expose unrestricted DevTools Protocol commands.
+- Debugger sessions require the Chromium install-time debugger permission and never expose unrestricted DevTools Protocol commands.
 - Firefox keeps its explicit unsupported-capability behavior for Chromium-only debugger features.
 
 ### Distribution

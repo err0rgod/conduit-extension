@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Conduit Extension",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Secure local-first browser control for AI agents.",
   "homepage_url": "https://github.com/err0rgod/conduit",
   "minimum_chrome_version": "120",

@@ -13,7 +13,7 @@ Pre-1.0 migration repository. The extension builds and its browser engine and
 protocol tests run independently. Chrome users can install the live [Chrome Web
 Store listing](https://chromewebstore.google.com/detail/conduit-extension/gjhipjgiapijcdnflldnoenafeegmfpc).
 For development or recovery, download the verified unpacked archive from the
-[v1.1.4 GitHub release](https://github.com/err0rgod/conduit-extension/releases/tag/v1.1.4),
+[v1.1.5 GitHub release](https://github.com/err0rgod/conduit-extension/releases/tag/v1.1.5),
 extract it, open `chrome://extensions`, enable Developer mode, choose Load unpacked,
 and select the folder containing `manifest.json`. This archive has deterministic
 Chromium ID `jkdlmcpkgkooilffjegfjmkanoelbmbl`, which Conduit trusts by default.
