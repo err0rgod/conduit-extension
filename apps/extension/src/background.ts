@@ -178,27 +178,30 @@ function requestNativeConnectionSettings(): Promise<NativeConnectionSettings | n
       }
       resolve(parseNativeConnectionSettings(response));
     };
-    const callback = (response: unknown): void => finish(response);
     try {
-      const result = (
-        chrome.runtime.sendNativeMessage as unknown as (
-          hostName: string,
-          message: unknown,
-          callback: (response: unknown) => void,
-        ) => unknown
-      )(
-        NATIVE_HOST_NAME,
-        {
-          type: 'conduit.get-connection-settings',
-          protocolVersion: NATIVE_PROTOCOL_VERSION,
-        },
-        callback,
-      );
-      if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
-        void (result as PromiseLike<unknown>).then(
+      const message = {
+        type: 'conduit.get-connection-settings',
+        protocolVersion: NATIVE_PROTOCOL_VERSION,
+      };
+      if (chrome.runtime.getURL('').startsWith('moz-extension://')) {
+        const result = (
+          chrome.runtime.sendNativeMessage as unknown as (
+            hostName: string,
+            request: unknown,
+          ) => Promise<unknown>
+        )(NATIVE_HOST_NAME, message);
+        void result.then(
           (response) => finish(response),
           (error) => finish(undefined, error),
         );
+      } else {
+        (
+          chrome.runtime.sendNativeMessage as unknown as (
+            hostName: string,
+            request: unknown,
+            callback: (response: unknown) => void,
+          ) => void
+        )(NATIVE_HOST_NAME, message, (response) => finish(response));
       }
     } catch (error) {
       finish(undefined, error);
