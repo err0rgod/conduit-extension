@@ -158,18 +158,52 @@ function openDaemonSocket(port: number, token: string): void {
 
 function requestNativeConnectionSettings(): Promise<NativeConnectionSettings | null> {
   return new Promise((resolve) => {
-    chrome.runtime.sendNativeMessage(
-      NATIVE_HOST_NAME,
-      { type: 'conduit.get-connection-settings', protocolVersion: NATIVE_PROTOCOL_VERSION },
-      (response: unknown) => {
-        if (chrome.runtime.lastError) {
-          console.info('Conduit native host is not available:', chrome.runtime.lastError.message);
-          resolve(null);
-          return;
-        }
-        resolve(parseNativeConnectionSettings(response));
-      },
-    );
+    let settled = false;
+    const finish = (response: unknown, error?: unknown): void => {
+      if (settled) return;
+      settled = true;
+      if (error) {
+        console.info(
+          'Conduit native host is not available:',
+          error instanceof Error ? error.message : String(error),
+        );
+        resolve(null);
+        return;
+      }
+      const runtimeError = chrome.runtime.lastError;
+      if (runtimeError) {
+        console.info('Conduit native host is not available:', runtimeError.message);
+        resolve(null);
+        return;
+      }
+      resolve(parseNativeConnectionSettings(response));
+    };
+    const callback = (response: unknown): void => finish(response);
+    try {
+      const result = (
+        chrome.runtime.sendNativeMessage as unknown as (
+          hostName: string,
+          message: unknown,
+          callback: (response: unknown) => void,
+        ) => unknown
+      )(
+        NATIVE_HOST_NAME,
+        {
+          type: 'conduit.get-connection-settings',
+          protocolVersion: NATIVE_PROTOCOL_VERSION,
+        },
+        callback,
+      );
+      if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
+        void (result as PromiseLike<unknown>).then(
+          (response) => finish(response),
+          (error) => finish(undefined, error),
+        );
+      }
+    } catch (error) {
+      finish(undefined, error);
+    }
+    setTimeout(() => finish(undefined, new Error('Native host response timed out.')), 10_000);
   });
 }
 

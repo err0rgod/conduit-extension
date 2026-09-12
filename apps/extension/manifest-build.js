@@ -14,7 +14,9 @@ function manifestForTarget(sourceManifest, target) {
   }
 
   delete manifest.minimum_chrome_version;
-  manifest.permissions = manifest.permissions.filter((permission) => permission !== 'tabGroups');
+  manifest.permissions = manifest.permissions.filter(
+    (permission) => permission !== 'tabGroups' && permission !== 'debugger',
+  );
   manifest.optional_permissions = manifest.optional_permissions.filter(
     (permission) => permission !== 'debugger',
   );

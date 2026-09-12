@@ -45,6 +45,7 @@ describe('extension release package', () => {
     expect(firefoxManifest.minimum_chrome_version).toBeUndefined();
     expect(firefoxManifest.background).toEqual({ scripts: ['background.js'] });
     expect(firefoxManifest.permissions).not.toContain('tabGroups');
+    expect(firefoxManifest.permissions).not.toContain('debugger');
     expect(firefoxManifest.optional_permissions).toEqual(['downloads']);
     expect(firefoxManifest.browser_specific_settings).toEqual({
       gecko: {

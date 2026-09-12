@@ -6,9 +6,17 @@
   "homepage_url": "https://github.com/err0rgod/conduit",
   "minimum_chrome_version": "120",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoXC2L+2qtU4XGF09xOF7b9lRUoeJT475RPwzNT24QFfTGlVN6MeNFKBGuOHwQuB8MYpTzdnwYrL1/SXSNDmp0Obds3NEooa/RyNDDXY7vgSg9ymd392alocd8aoctMND1xILAP4jbnohDINi/V6liYTUbfwnXgw2gZ701545DrpE7y/6DucmJY0CwQpBpUEjD2JC4hk8NzaVNRr0X3tnLh9cRz1qoOzv7FksG55L/9nm99UUSr7PALkhBN0sV7XDX8rcOMFyV65wB8ue1HuvV4QITe2Yl2b0HPK5izuYDfZwSUO3Www7Q7HqTLbXyMKePHTMpFVj9IdS8vUpFsdjAQIDAQAB",
-  "permissions": ["activeTab", "tabs", "tabGroups", "scripting", "storage", "nativeMessaging"],
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "tabGroups",
+    "scripting",
+    "storage",
+    "nativeMessaging",
+    "debugger"
+  ],
   "optional_host_permissions": ["http://*/*", "https://*/*"],
-  "optional_permissions": ["debugger", "downloads"],
+  "optional_permissions": ["downloads"],
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",

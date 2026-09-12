@@ -2,7 +2,11 @@ type ConnectionState = 'connecting' | 'connected' | 'disconnected' | 'setup-requ
 
 import { hostPermissionPattern } from '@conduit/browser-core';
 import type { AuditEvent, ConfirmationRequest } from '@conduit/protocol';
-import { optionalCapabilitiesForRuntimeUrl, parseActiveSession } from './capability-state';
+import {
+  optionalCapabilitiesForRuntimeUrl,
+  parseActiveSession,
+  requiredCapabilitiesForRuntimeUrl,
+} from './capability-state';
 import type { OptionalCapabilityPermission } from './capability-state';
 import { hasAllSiteAccess, requestAllSiteAccess, revokeAllSiteAccess } from './site-permissions';
 
@@ -40,6 +44,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const revokeAllSitesButton = document.getElementById('revoke-all-sites') as HTMLButtonElement;
   const allowAllSitesButton = document.getElementById('allow-all-sites') as HTMLButtonElement;
   const optionalCapabilities = optionalCapabilitiesForRuntimeUrl(chrome.runtime.getURL(''));
+  const requiredCapabilities = requiredCapabilitiesForRuntimeUrl(chrome.runtime.getURL(''));
   let activePattern: string | undefined;
 
   const render = (values: {
@@ -141,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const permissions = await chrome.permissions.getAll();
     const grantedPermissions = new Set(permissions.permissions ?? []);
     capabilityList.replaceChildren(
-      ...optionalCapabilities.map((capability) => {
+      ...[...requiredCapabilities, ...optionalCapabilities].map((capability) => {
         const granted = grantedPermissions.has(capability.permission);
         const card = document.createElement('article');
         card.className = 'capability-card';
@@ -157,14 +162,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const description = document.createElement('p');
         description.className = 'permission-note';
         description.textContent = capability.description;
-        const action = document.createElement('button');
-        action.type = 'button';
-        action.className = granted ? 'secondary' : '';
-        action.textContent = granted ? 'Revoke' : 'Allow';
-        action.addEventListener('click', () => {
-          void changeCapabilityPermission(capability.permission, !granted, action);
-        });
-        card.append(heading, description, action);
+        if (capability.permission === 'debugger') {
+          const status = document.createElement('span');
+          status.className = 'permission-note';
+          status.textContent = 'Managed by Chromium at install time.';
+          card.append(heading, description, status);
+        } else {
+          const action = document.createElement('button');
+          action.type = 'button';
+          action.className = granted ? 'secondary' : '';
+          action.textContent = granted ? 'Revoke' : 'Allow';
+          action.addEventListener('click', () => {
+            void changeCapabilityPermission(capability.permission, !granted, action);
+          });
+          card.append(heading, description, action);
+        }
         return card;
       }),
     );

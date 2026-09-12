@@ -68,9 +68,11 @@ The popup also requests at most 20 recent structured audit events. It shows only
 event type, outcome, operation/domain scope, and time; sensitive values are
 redacted by the daemon and arbitrary event details remain hidden from this view.
 
-Optional browser capabilities remain disabled by default. The popup lets the user
-grant or revoke advanced interaction (`debugger`) and recent download visibility
-(`downloads`), explicitly grant or revoke all HTTP/HTTPS sites, and inspect the current
+Chromium declares the `debugger` capability at installation time because Chrome does
+not support requesting that permission later through `chrome.permissions.request`.
+The popup reports its installation-managed state. Recent download visibility
+(`downloads`) remains optional and can be granted or revoked there. The popup also
+lets the user explicitly grant or revoke all HTTP/HTTPS sites and inspect the current
 authenticated daemon session start and last-activity time. Firefox omits the
 Chromium-only `debugger` capability, so hover, physical key input, and approved file
 uploads report that advanced interaction is unsupported there.

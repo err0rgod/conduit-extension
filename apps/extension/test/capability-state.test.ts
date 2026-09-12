@@ -3,17 +3,21 @@ import {
   OPTIONAL_CAPABILITIES,
   optionalCapabilitiesForRuntimeUrl,
   parseActiveSession,
+  REQUIRED_CAPABILITIES,
+  requiredCapabilitiesForRuntimeUrl,
 } from '../src/capability-state';
 
 describe('extension capability state', () => {
-  it('defines explicit UI controls for every optional Chromium permission', () => {
-    expect(OPTIONAL_CAPABILITIES.map(({ permission }) => permission)).toEqual([
-      'debugger',
-      'downloads',
-    ]);
+  it('defines explicit UI controls for the optional Chromium permission', () => {
+    expect(OPTIONAL_CAPABILITIES.map(({ permission }) => permission)).toEqual(['downloads']);
   });
 
-  it('hides Chromium-only debugger controls in Firefox', () => {
+  it('keeps the required debugger capability out of Firefox', () => {
+    expect(REQUIRED_CAPABILITIES.map(({ permission }) => permission)).toEqual(['debugger']);
+    expect(requiredCapabilitiesForRuntimeUrl('moz-extension://example/')).toEqual([]);
+    expect(requiredCapabilitiesForRuntimeUrl('chrome-extension://example/')).toEqual(
+      REQUIRED_CAPABILITIES,
+    );
     expect(
       optionalCapabilitiesForRuntimeUrl('moz-extension://example/').map(
         ({ permission }) => permission,
@@ -23,7 +27,7 @@ describe('extension capability state', () => {
       optionalCapabilitiesForRuntimeUrl('chrome-extension://example/').map(
         ({ permission }) => permission,
       ),
-    ).toEqual(['debugger', 'downloads']);
+    ).toEqual(['downloads']);
   });
 
   it('accepts only bounded privacy-safe session timestamps', () => {

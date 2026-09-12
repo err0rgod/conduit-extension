@@ -11,9 +11,16 @@ describe('extension manifest permissions', () => {
     expect(manifest.host_permissions).toBeUndefined();
     expect(manifest.optional_host_permissions).toEqual(['http://*/*', 'https://*/*']);
     expect(manifest.permissions).toEqual(
-      expect.arrayContaining(['activeTab', 'nativeMessaging', 'scripting', 'storage', 'tabs']),
+      expect.arrayContaining([
+        'activeTab',
+        'debugger',
+        'nativeMessaging',
+        'scripting',
+        'storage',
+        'tabs',
+      ]),
     );
-    expect(manifest.optional_permissions).toEqual(['debugger', 'downloads']);
+    expect(manifest.optional_permissions).toEqual(['downloads']);
     expect(manifest.icons).toEqual({
       '16': 'icons/icon-16.png',
       '32': 'icons/icon-32.png',

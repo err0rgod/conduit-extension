@@ -1,4 +1,5 @@
-export type OptionalCapabilityPermission = 'debugger' | 'downloads';
+export type OptionalCapabilityPermission = 'downloads';
+export type RequiredCapabilityPermission = 'debugger';
 
 export interface ActiveSession {
   authenticatedAt: number;
@@ -11,21 +12,31 @@ export const OPTIONAL_CAPABILITIES: ReadonlyArray<{
   description: string;
 }> = [
   {
-    permission: 'debugger',
-    label: 'Advanced interaction',
-    description: 'Required for hover, physical key events, and approved file uploads.',
-  },
-  {
     permission: 'downloads',
     label: 'Download visibility',
     description: 'Allows agents with daemon permission to inspect recent download status.',
   },
 ];
 
+export const REQUIRED_CAPABILITIES: ReadonlyArray<{
+  permission: RequiredCapabilityPermission;
+  label: string;
+  description: string;
+}> = [
+  {
+    permission: 'debugger',
+    label: 'Advanced interaction',
+    description:
+      'Enabled by Chromium at installation time for hover, physical key events, debugging, and approved file uploads.',
+  },
+];
+
 export function optionalCapabilitiesForRuntimeUrl(runtimeUrl: string) {
-  return runtimeUrl.startsWith('moz-extension://')
-    ? OPTIONAL_CAPABILITIES.filter((capability) => capability.permission !== 'debugger')
-    : OPTIONAL_CAPABILITIES;
+  return OPTIONAL_CAPABILITIES;
+}
+
+export function requiredCapabilitiesForRuntimeUrl(runtimeUrl: string) {
+  return runtimeUrl.startsWith('moz-extension://') ? [] : REQUIRED_CAPABILITIES;
 }
 
 export function parseActiveSession(value: unknown): ActiveSession | undefined {

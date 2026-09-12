@@ -37,7 +37,10 @@ if (extensionId !== expectedExtensionId) {
   fail(`manifest key produces ${extensionId}, expected ${expectedExtensionId}`);
 }
 if (manifest.host_permissions !== undefined) fail('production manifest has required host access');
-if (JSON.stringify(manifest.optional_permissions) !== JSON.stringify(['debugger', 'downloads'])) {
+if (!manifest.permissions.includes('debugger')) {
+  fail('Chromium manifest must declare the debugger permission');
+}
+if (JSON.stringify(manifest.optional_permissions) !== JSON.stringify(['downloads'])) {
   fail('optional Chromium permissions do not match the reviewed release set');
 }
 for (const file of requiredFiles) {
@@ -91,6 +94,9 @@ for (const target of ['unpacked', 'chromium-store', 'firefox']) {
       fail('Firefox archive does not use a Firefox background script');
     }
     if (archivedManifest.optional_permissions?.includes('debugger')) {
+      fail('Firefox archive includes the unsupported debugger permission');
+    }
+    if (archivedManifest.permissions?.includes('debugger')) {
       fail('Firefox archive includes the unsupported debugger permission');
     }
   }
