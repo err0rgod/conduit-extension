@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.1.6] - 2026-11-09
+
+Chrome Web Store update package with version increment for store submission.
+
 ## [1.1.5] - 2026-09-12
 
 This release fixes Chromium advanced interaction permission handling and prepares a new
